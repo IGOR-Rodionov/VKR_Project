@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include"../Source/Parametrs/Parametrs.h"
+#include "../Source/DSP/LVCompressor.h"
 
 //==============================================================================
 /**
@@ -89,8 +90,11 @@ private:
     bool isReverbProcessing = false;
     bool isDynamicProcessing = false;
 
-    // Frequency
+    // Frequency filters
     juce::dsp::ProcessorDuplicator<juce::dsp::StateVariableFilter::Filter<float>, juce::dsp::StateVariableFilter::Parameters<float>> stateVariableFilter;
+
+    //Reverb
+    juce::dsp::ProcessSpec Spec;
 
     // Delay effects
     juce::AudioBuffer<float> DelayBuffer;
@@ -103,6 +107,23 @@ private:
 
     bool enabledChorus = false;
     bool enabledFeedback = false;
+
+    void FillBuffer(int channel, int BufferSize, int DelayBufferSize, float* channelData);
+    void ReadFromBuffer(juce::AudioBuffer<float>& buffer, juce::AudioBuffer<float>& DelayBuffer,
+        int channel, int BufferSize, int DelayBufferSize);
+    const double lowFrequencyFunction();
+
+    // Compressor
+    juce::dsp::Gain<float> inputModule;
+    juce::dsp::Gain<float> outputModule;
+    juce::dsp::Compressor<float> compressorModule;
+    juce::dsp::Limiter<float> limiterModule;
+
+    LVCompressor lvCompressorModule;
+
+    // Props
+    void ClearBuffer(juce::AudioBuffer<float>& buffer, int totalNumInputChannels, int totalNumOutputChannels);
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VKRprojectAudioProcessor)
 };

@@ -158,7 +158,40 @@ void VKRprojectAudioProcessor::parameterChanged(const juce::String& parametrID, 
 
 void VKRprojectAudioProcessor::updateParameters()
 {
+    // Delay effects
+    DalayTime = treeState.getRawParameterValue(delayTimeID)->load();
+    Balance = treeState.getRawParameterValue(balanceID)->load() / 100;
+    Width = treeState.getRawParameterValue(widthID)->load();
+
+    // Frequency filters
+    if (filterType == "high-pass")
+    {
+        stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::highPass;
+    }
+    else if (filterType == "low-pass")
+    {
+        stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass;
+    }
+
+    stateVariableFilter.state->setCutOffFrequency(lastSampleRate,
+        treeState.getRawParameterValue(cutoffFrequencyID)->load(),
+        treeState.getRawParameterValue(resonanceId)->load());
+
+    // Compressor
+    inputModule.setGainDecibels(treeState.getRawParameterValue(inputID)->load());
+
+    lvCompressorModule.setThreshold(treeState.getRawParameterValue(threshID)->load());
+    lvCompressorModule.setRatio(treeState.getRawParameterValue(ratioID)->load());
+    lvCompressorModule.setAttack(treeState.getRawParameterValue(attackID)->load());
+    lvCompressorModule.setRelease(treeState.getRawParameterValue(releaseID)->load());
+    lvCompressorModule.setMix(treeState.getRawParameterValue(compMixID)->load());
+
+    limiterModule.setThreshold(treeState.getRawParameterValue(lThreshID)->load());
+    limiterModule.setRelease(treeState.getRawParameterValue(lReleaseID)->load());
+
+    outputModule.setGainDecibels(treeState.getRawParameterValue(outputID)->load());
 }
+
 
 //==============================================================================
 const juce::String VKRprojectAudioProcessor::getName() const
@@ -227,6 +260,40 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    juce::dsp::ProcessSpec spec;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.sampleRate = sampleRate;
+    spec.numChannels = getTotalNumOutputChannels();
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.maximumBlockSize = getMainBusNumOutputChannels();
+
+    // Frequency filters
+    lastSampleRate = sampleRate;
+    stateVariableFilter.reset();
+    stateVariableFilter.prepare(spec);
+
+    // IR Reverb
+    Spec.maximumBlockSize = samplesPerBlock;
+    Spec.sampleRate = sampleRate;
+    Spec.numChannels = getTotalNumOutputChannels();
+
+    irLoader.reset();
+    irLoader.prepare(Spec);
+
+    // Delay
+    auto DelayBufferSize = sampleRate * 2.;
+    DelayBuffer.setSize(getTotalNumOutputChannels(), (int)DelayBufferSize);
+    DelayBuffer.clear();
+
+    // Compressor
+    inputModule.prepare(spec);
+    inputModule.setRampDurationSeconds(0.02);
+    outputModule.setRampDurationSeconds(0.02);
+    outputModule.prepare(spec);
+    lvCompressorModule.prepare(spec);
+    limiterModule.prepare(spec);
+
+    updateParameters();
 }
 
 void VKRprojectAudioProcessor::releaseResources()
@@ -267,28 +334,126 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
-
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    if (isReverbProcessing) 
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        juce::dsp::AudioBlock<float> block{ buffer };
+        if (irLoader.getCurrentIRSize() > 0)
+        {
+            irLoader.process(juce::dsp::ProcessContextReplacing<float>(block));
+        }
+    }
+    if (isDelayProcessing) 
+    {
+        ClearBuffer(buffer, totalNumInputChannels, totalNumOutputChannels);
 
-        // ..do something to the data...
+        auto BufferSize = buffer.getNumSamples();
+        auto DelayBufferSize = DelayBuffer.getNumSamples();
+
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
+        {
+            auto* channelData = buffer.getWritePointer(channel);
+            FillBuffer(channel, BufferSize, DelayBufferSize, channelData);
+            ReadFromBuffer(buffer, DelayBuffer, channel, BufferSize, DelayBufferSize);
+            if (enabledFeedback)
+            {
+                FillBuffer(channel, BufferSize, DelayBufferSize, channelData);
+            }
+        }
+
+        lowFuncVar++;
+        lowFuncVar %= 1000;
+        WritePosition += BufferSize;
+        WritePosition %= DelayBufferSize;
+    }
+    if (isFrequencyProcessing)
+    {
+        ClearBuffer(buffer, totalNumInputChannels, totalNumOutputChannels);
+        juce::dsp::AudioBlock<float> block(buffer);
+
+        updateParameters();
+        stateVariableFilter.process(juce::dsp::ProcessContextReplacing<float>(block));
+    }
+    if (isDynamicProcessing) 
+    {
+        juce::dsp::AudioBlock<float> block{ buffer };
+
+        inputModule.process(juce::dsp::ProcessContextReplacing<float>(block));
+        lvCompressorModule.process(buffer);
+        limiterModule.process(juce::dsp::ProcessContextReplacing<float>(block));
+        outputModule.process(juce::dsp::ProcessContextReplacing<float>(block));
     }
 }
+
+// Delay Effects
+void VKRprojectAudioProcessor::FillBuffer(int channel, int BufferSize, int DelayBufferSize, float* channelData)
+{
+    if (DelayBufferSize > BufferSize + WritePosition)
+    {
+        DelayBuffer.copyFrom(channel, WritePosition, channelData, BufferSize);
+    }
+    else
+    {
+        auto NumSamplesToEnd = DelayBufferSize - WritePosition;
+        DelayBuffer.copyFrom(channel, WritePosition, channelData, NumSamplesToEnd);
+
+        auto NumSamplesAtStart = BufferSize - NumSamplesToEnd;
+        DelayBuffer.copyFrom(channel, 0, channelData + NumSamplesToEnd, NumSamplesAtStart);
+    }
+}
+
+void VKRprojectAudioProcessor::ReadFromBuffer(juce::AudioBuffer<float>& buffer, juce::AudioBuffer<float>& DelayBuffer, int channel, int BufferSize, int DelayBufferSize)
+{
+    auto ReadPosition = WritePosition - (int)(DalayTime * getSampleRate() / 1000);
+    float Gain = Balance;
+    if (enabledChorus)
+    {
+        Gain = Balance * lowFrequencyFunction();
+    }
+
+    if (ReadPosition < 0)
+    {
+        ReadPosition += DelayBufferSize;
+    }
+    if (ReadPosition + BufferSize < DelayBufferSize)
+    {
+        buffer.addFromWithRamp(channel, 0, DelayBuffer.getReadPointer(channel, ReadPosition), BufferSize, Gain, Gain);
+    }
+    else
+    {
+        auto NumSamplesToEnd = DelayBufferSize - ReadPosition;
+        buffer.addFromWithRamp(channel, 0, DelayBuffer.getReadPointer(channel, ReadPosition), NumSamplesToEnd, Gain, Gain);
+
+        auto NumSamplesAtStart = BufferSize - NumSamplesToEnd;
+        buffer.addFromWithRamp(channel, NumSamplesToEnd, DelayBuffer.getReadPointer(channel, 0), NumSamplesAtStart, Gain, Gain);
+    }
+}
+
+const double VKRprojectAudioProcessor::lowFrequencyFunction()
+{
+    if (lowFuncType == "sin(x)")
+    {
+        return std::sin(lowFuncVar * Width);
+    }
+    else if (lowFuncType == "tan(sin(x))")
+    {
+        return std::tan(std::sin(lowFuncVar) * Width);
+    }
+    else if (lowFuncType == "arctan(sin(x))")
+    {
+        return std::atan(std::sin(lowFuncVar) * Width);
+    }
+    else return 1.;
+}
+
+// Props
+void VKRprojectAudioProcessor::ClearBuffer(juce::AudioBuffer<float>& buffer, int totalNumInputChannels, int totalNumOutputChannels)
+{
+    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i) 
+    {
+        buffer.clear(i, 0, buffer.getNumSamples());
+    }
+}
+
 
 //==============================================================================
 bool VKRprojectAudioProcessor::hasEditor() const
@@ -307,12 +472,32 @@ void VKRprojectAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    treeState.state.appendChild(variableTree, nullptr);
+    juce::MemoryOutputStream stream(destData, false);
+    treeState.state.writeToStream(stream);
 }
 
 void VKRprojectAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, size_t(sizeInBytes));
+    variableTree = tree.getChildWithName("Variables");
+
+    if (tree.isValid())
+    {
+        treeState.state = tree;
+
+        savedFile = juce::File(variableTree.getProperty("file1"));
+        root = juce::File(variableTree.getProperty("root"));
+
+        if (savedFile.existsAsFile())
+        {
+            irLoader.loadImpulseResponse(savedFile,
+                juce::dsp::Convolution::Stereo::yes,
+                juce::dsp::Convolution::Trim::yes, 0);
+        }
+    }
 }
 
 //==============================================================================

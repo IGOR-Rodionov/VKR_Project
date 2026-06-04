@@ -13,7 +13,7 @@
 void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
     // Processing settings
-    if (button = &frequencyButton)
+    if (button == &frequencyButton)
     {
         audioProcessor.setFrequencyProcessing(true);
         audioProcessor.setDelayProcessing(false);
@@ -21,7 +21,7 @@ void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
         audioProcessor.setDynamicProcessing(false);
         return;
     }
-    if (button = &delayEffectsButton)
+    if (button == &delayEffectsButton)
     {
         audioProcessor.setFrequencyProcessing(false);
         audioProcessor.setDelayProcessing(true);
@@ -29,7 +29,7 @@ void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
         audioProcessor.setDynamicProcessing(false);
         return;
     }
-    if (button = &reverbButton)
+    if (button == &reverbButton)
     {
         audioProcessor.setFrequencyProcessing(false);
         audioProcessor.setDelayProcessing(false);
@@ -37,7 +37,7 @@ void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
         audioProcessor.setDynamicProcessing(false);
         return;
     }
-    if (button = &dynamicButton)
+    if (button == &dynamicButton)
     {
         audioProcessor.setFrequencyProcessing(false);
         audioProcessor.setDelayProcessing(false);
