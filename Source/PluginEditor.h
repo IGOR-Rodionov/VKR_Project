@@ -36,7 +36,7 @@ private:
     /* Sliders */
     // Frequency
     juce::Slider frequencySlider;
-    juce::Slider resonanceSlider;
+    juce::Slider orderSlider;
 
     // Delay
     juce::Slider DelaySlider;
@@ -58,7 +58,7 @@ private:
 
     std::vector<juce::Slider*> sliders =
     {
-        &frequencySlider, &resonanceSlider,
+        &frequencySlider, &orderSlider,
         &DelaySlider, &BalanceSlider, &WidthSlider,
         &inputSlider,&threshSlider,&ratioSlider,&limiterThreshSlider,
         &outputSlider,&attackSlider,&releaseSlider,&limiterReleaseSlider,
@@ -69,7 +69,7 @@ private:
     /* Labels */
     // Frequency
     juce::Label frequencyLabel;
-    juce::Label resonanceLabel;
+    juce::Label orderLabel;
 
     // Delay
     juce::Label delayLabel;
@@ -94,7 +94,7 @@ private:
 
     std::vector<juce::Label*> slidersLabels =
     {
-        &frequencyLabel, &resonanceLabel,
+        &frequencyLabel, &orderLabel,
         &delayLabel, &balanceLabel, &widthLabel,
         &inputSliderLabel,&threshSliderLabel,&ratioSliderLabel,&limiterThreshSliderLabel,
         &outputSliderLabel,&attackSliderLabel,&releaseSliderLabel,&limiterReleaseSliderLabel,
@@ -158,7 +158,7 @@ private:
     /* Slider attachment */
     // Frequency
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> frequencyAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> resonanceAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> orderAttach;
 
     // Delay effects
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayAttach;

@@ -25,7 +25,7 @@ VKRprojectAudioProcessor::VKRprojectAudioProcessor()
 {
     // Frequency processing
     treeState.addParameterListener(cutoffFrequencyID, this);
-    treeState.addParameterListener(resonanceId, this);
+    treeState.addParameterListener(orderId, this);
 
     // Spatial processing
     treeState.addParameterListener(delayTimeID, this);
@@ -62,7 +62,7 @@ VKRprojectAudioProcessor::~VKRprojectAudioProcessor()
 {
     // Frequency processing
     treeState.removeParameterListener(cutoffFrequencyID, this);
-    treeState.removeParameterListener(resonanceId, this);
+    treeState.removeParameterListener(orderId, this);
 
     // Spatial processing
     treeState.removeParameterListener(delayTimeID, this);
@@ -88,7 +88,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
     // Frequency processing
     juce::NormalisableRange<float> cutOffFrequencyRange = juce::NormalisableRange<float>(20.f, 22000.f, 10.f);
     cutOffFrequencyRange.setSkewForCentre(3500.f);
-    juce::NormalisableRange<float> resonanceRange = juce::NormalisableRange<float>(0.f, 5.f, 0.05f);
+    juce::NormalisableRange<float> orderRange = juce::NormalisableRange<float>(1.f, 8.f, 1.f);
 
     // Spatial processing
     juce::NormalisableRange<float> delayTimeRange = juce::NormalisableRange<float>(0.f, 2000.f, 10.f);
@@ -106,7 +106,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
     /* Set parametrs */
     // Frequency processing
     auto pCuttOffFrequency = std::make_unique<juce::AudioParameterFloat>(cutoffFrequencyID, cutoffFrequencyName, cutOffFrequencyRange, 200.f);
-    auto pResonance = std::make_unique<juce::AudioParameterFloat>(resonanceId, resonanceName, resonanceRange, 50.f);
+    auto porder = std::make_unique<juce::AudioParameterFloat>(orderId, orderName, orderRange, 50.f);
 
     // Spatial processing
     auto pDelayTime = std::make_unique<juce::AudioParameterFloat>(delayTimeID, delayTimeName, delayTimeRange, 200.f);
@@ -129,7 +129,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
 
     // Frequency processing
     params.push_back(std::move(pCuttOffFrequency));
-    params.push_back(std::move(pResonance));
+    params.push_back(std::move(porder));
 
     // Spatial processing
     params.push_back(std::move(pDelayTime));
@@ -167,15 +167,70 @@ void VKRprojectAudioProcessor::updateParameters()
     if (filterType == "high-pass")
     {
         stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::highPass;
+        auto coefficientsArray = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+            treeState.getRawParameterValue(cutoffFrequencyID)->load(),
+            lastSampleRate,
+            treeState.getRawParameterValue(orderId)->load()
+        );
+
+        if (treeState.getRawParameterValue(orderId)->load() == 2)
+        {
+            *filter2Chain.get<0>().coefficients = *coefficientsArray[0];
+        }
+        if (treeState.getRawParameterValue(orderId)->load() == 4)
+        {
+            *filter4Chain.get<0>().coefficients = *coefficientsArray[0];
+            *filter4Chain.get<1>().coefficients = *coefficientsArray[1];
+        }
+        if (treeState.getRawParameterValue(orderId)->load() == 6)
+        {
+            *filter6Chain.get<0>().coefficients = *coefficientsArray[0];
+            *filter6Chain.get<1>().coefficients = *coefficientsArray[1];
+            *filter6Chain.get<2>().coefficients = *coefficientsArray[2];
+        }
+        if (treeState.getRawParameterValue(orderId)->load() == 8)
+        {
+            *filter8Chain.get<0>().coefficients = *coefficientsArray[0];
+            *filter8Chain.get<1>().coefficients = *coefficientsArray[1];
+            *filter8Chain.get<2>().coefficients = *coefficientsArray[2];
+            *filter8Chain.get<3>().coefficients = *coefficientsArray[3];
+        }
     }
-    else if (filterType == "low-pass")
+    else //if (filterType == "low-pass")
     {
         stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass;
-    }
+        auto coefficientsArray = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+            treeState.getRawParameterValue(cutoffFrequencyID)->load(),
+            lastSampleRate,
+            treeState.getRawParameterValue(orderId)->load()
+        );
 
-    stateVariableFilter.state->setCutOffFrequency(lastSampleRate,
-        treeState.getRawParameterValue(cutoffFrequencyID)->load(),
-        treeState.getRawParameterValue(resonanceId)->load());
+        if (treeState.getRawParameterValue(orderId)->load() <= 2)
+        {
+            *filter2Chain.get<0>().coefficients = *coefficientsArray[0];
+        }
+        if (treeState.getRawParameterValue(orderId)->load() <= 4 &&
+            treeState.getRawParameterValue(orderId)->load() > 2)
+        {
+            *filter4Chain.get<0>().coefficients = *coefficientsArray[0];
+            *filter4Chain.get<1>().coefficients = *coefficientsArray[1];
+        }
+        if (treeState.getRawParameterValue(orderId)->load() <= 6 &&
+            treeState.getRawParameterValue(orderId)->load() > 4)
+        {
+            *filter6Chain.get<0>().coefficients = *coefficientsArray[0];
+            *filter6Chain.get<1>().coefficients = *coefficientsArray[1];
+            *filter6Chain.get<2>().coefficients = *coefficientsArray[2];
+        }
+        if (treeState.getRawParameterValue(orderId)->load() <= 8 &&
+            treeState.getRawParameterValue(orderId)->load() > 6)
+        {
+            *filter8Chain.get<0>().coefficients = *coefficientsArray[0];
+            *filter8Chain.get<1>().coefficients = *coefficientsArray[1];
+            *filter8Chain.get<2>().coefficients = *coefficientsArray[2];
+            *filter8Chain.get<3>().coefficients = *coefficientsArray[3];
+        }
+    }
 
     // Compressor
     inputModule.setGainDecibels(treeState.getRawParameterValue(inputID)->load());
@@ -269,8 +324,14 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
 
     // Frequency filters
     lastSampleRate = sampleRate;
-    stateVariableFilter.reset();
-    stateVariableFilter.prepare(spec);
+    filter2Chain.reset();
+    filter4Chain.reset();
+    filter6Chain.reset();
+    filter8Chain.reset();
+    filter2Chain.prepare(spec);
+    filter4Chain.prepare(spec);
+    filter6Chain.prepare(spec);
+    filter8Chain.prepare(spec);
 
     // IR Reverb
     Spec.maximumBlockSize = samplesPerBlock;
@@ -344,7 +405,10 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     }
     if (isDelayProcessing) 
     {
-        ClearBuffer(buffer, totalNumInputChannels, totalNumOutputChannels);
+        for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        {
+            buffer.clear(i, 0, buffer.getNumSamples());
+        }
 
         auto BufferSize = buffer.getNumSamples();
         auto DelayBufferSize = DelayBuffer.getNumSamples();
@@ -367,11 +431,30 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     }
     if (isFrequencyProcessing)
     {
-        ClearBuffer(buffer, totalNumInputChannels, totalNumOutputChannels);
         juce::dsp::AudioBlock<float> block(buffer);
+        juce::dsp::ProcessContextReplacing<float> context(block);
 
         updateParameters();
-        stateVariableFilter.process(juce::dsp::ProcessContextReplacing<float>(block));
+        if (treeState.getRawParameterValue(orderId)->load() <= 2)
+        {
+            filter2Chain.process(context);
+        }
+        if (treeState.getRawParameterValue(orderId)->load() <= 4 &&
+            treeState.getRawParameterValue(orderId)->load() > 2)
+        {
+            filter4Chain.process(context);
+        }
+        if (treeState.getRawParameterValue(orderId)->load() <= 6 &&
+            treeState.getRawParameterValue(orderId)->load() > 4)
+        {
+            filter6Chain.process(context);
+        }
+
+        if (treeState.getRawParameterValue(orderId)->load() <= 8 &&
+            treeState.getRawParameterValue(orderId)->load() > 6)
+        {
+            filter8Chain.process(context);
+        }
     }
     if (isDynamicProcessing) 
     {
@@ -443,15 +526,6 @@ const double VKRprojectAudioProcessor::lowFrequencyFunction()
         return std::atan(std::sin(lowFuncVar) * Width);
     }
     else return 1.;
-}
-
-// Props
-void VKRprojectAudioProcessor::ClearBuffer(juce::AudioBuffer<float>& buffer, int totalNumInputChannels, int totalNumOutputChannels)
-{
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i) 
-    {
-        buffer.clear(i, 0, buffer.getNumSamples());
-    }
 }
 
 

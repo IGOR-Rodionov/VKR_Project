@@ -93,6 +93,12 @@ private:
     // Frequency filters
     juce::dsp::ProcessorDuplicator<juce::dsp::StateVariableFilter::Filter<float>, juce::dsp::StateVariableFilter::Parameters<float>> stateVariableFilter;
 
+    using FilterType = juce::dsp::IIR::Filter<float>;
+    juce::dsp::ProcessorChain<FilterType> filter2Chain;
+    juce::dsp::ProcessorChain<FilterType, FilterType> filter4Chain;
+    juce::dsp::ProcessorChain<FilterType, FilterType, FilterType> filter6Chain;
+    juce::dsp::ProcessorChain<FilterType, FilterType, FilterType, FilterType> filter8Chain;
+
     //Reverb
     juce::dsp::ProcessSpec Spec;
 
@@ -120,9 +126,6 @@ private:
     juce::dsp::Limiter<float> limiterModule;
 
     LVCompressor lvCompressorModule;
-
-    // Props
-    void ClearBuffer(juce::AudioBuffer<float>& buffer, int totalNumInputChannels, int totalNumOutputChannels);
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VKRprojectAudioProcessor)

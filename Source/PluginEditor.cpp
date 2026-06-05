@@ -13,7 +13,7 @@
 VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
     , frequencyLabel("Frequency", "Frequency")
-    , resonanceLabel("Resonance", "Resonance")
+    , orderLabel("Order", "Order")
     , delayLabel("Delay time", "Delay time")
     , balanceLabel("Balance", "Balance")
     , widthLabel("Width", "Width")
@@ -53,7 +53,7 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
     /* Labels */
     // Frequency
     frequencyLabel.setText("Frequency", juce::NotificationType::dontSendNotification);
-    resonanceLabel.setText("Resonance", juce::NotificationType::dontSendNotification);
+    orderLabel.setText("Order", juce::NotificationType::dontSendNotification);
 
     // Delay
     delayLabel.setText("Delay time", juce::NotificationType::dontSendNotification);
@@ -203,14 +203,14 @@ void VKRprojectAudioProcessorEditor::resized()
     /* Freq filters */
     //Sliders
     frequencySlider.setBounds(LeftMargin, UpMargin, SliderWidth, SliderWidth);
-    resonanceSlider.setBounds(frequencySlider.getX() + frequencySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
+    orderSlider.setBounds(frequencySlider.getX() + frequencySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
 
     // Combobox
     filterTypeBox.setBounds(LeftMargin * 6, UpMargin + frequencySlider.getHeight() * 1.1, SliderWidth * 1.8, ButtonSize);
 
     /* Delay */
     // Sliders
-    DelaySlider.setBounds(resonanceSlider.getX() + SliderWidth * 1.2, UpMargin, SliderWidth, SliderWidth);
+    DelaySlider.setBounds(orderSlider.getX() + SliderWidth * 1.2, UpMargin, SliderWidth, SliderWidth);
     BalanceSlider.setBounds(DelaySlider.getX() + DelaySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
     WidthSlider.setBounds(BalanceSlider.getX() + BalanceSlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
 
@@ -225,7 +225,7 @@ void VKRprojectAudioProcessorEditor::resized()
     lowFuncTypeBox.setBounds(WidthSlider.getX(), WidthSlider.getY() + WidthSlider.getHeight() * 1.1, SliderWidth, ButtonSize);
 
     // Groups
-    delayGroup.setBounds(resonanceSlider.getX() + SliderWidth * 1.1, UpMargin / 2.5, SliderWidth * 2.13, feedbackButton.getY() + feedbackButton.getHeight() * 0.55);
+    delayGroup.setBounds(orderSlider.getX() + SliderWidth * 1.1, UpMargin / 2.5, SliderWidth * 2.13, feedbackButton.getY() + feedbackButton.getHeight() * 0.55);
     chorusGroup.setBounds(WidthSlider.getX() * 0.98, UpMargin / 2.5, SliderWidth * 1.15, chorusButton.getY() + chorusButton.getHeight() * 0.55);
 
     /* Compressor */
@@ -262,7 +262,7 @@ void VKRprojectAudioProcessorEditor::resized()
 
     /* Remain gruops */
     frequencyGroup.setBounds(LeftMargin, UpMargin / 6, SliderWidth * 2, filterTypeBox.getY() + ButtonSize * 1.22);
-    delayEffectsGroup.setBounds(resonanceSlider.getX() + SliderWidth, UpMargin / 6, SliderWidth * 3.5, feedbackButton.getY() + feedbackButton.getHeight() * 1.22);
+    delayEffectsGroup.setBounds(orderSlider.getX() + SliderWidth, UpMargin / 6, SliderWidth * 3.5, feedbackButton.getY() + feedbackButton.getHeight() * 1.22);
     dynamicProcGroup.setBounds(LeftMargin, inputSlider.getY() * 0.8, SliderWidth * 5.6, ioGroup.getHeight() * 1.1);
     processingSettingsGroup.setBounds(WidthSlider.getX() + WidthSlider.getWidth() * 1.2, UpMargin / 6, SliderWidth * 1.3, ButtonSize * ButtonMargin * 4.2);
     reverbGroup.setBounds(processingSettingsGroup.getX(), dynamicButton.getY() + ButtonSize * ButtonMargin, SliderWidth * 1.3, ButtonSize * 5);

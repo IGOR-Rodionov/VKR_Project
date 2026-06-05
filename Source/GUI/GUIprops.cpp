@@ -142,8 +142,8 @@ void VKRprojectAudioProcessorEditor::attachSliders()
     // Frequency processing
     frequencyAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         audioProcessor.treeState, cutoffFrequencyID, frequencySlider);
-    resonanceAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        audioProcessor.treeState, resonanceId, resonanceSlider);
+    orderAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        audioProcessor.treeState, orderId, orderSlider);
 
     // Spatial processing
     delayAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
