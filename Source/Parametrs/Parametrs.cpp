@@ -15,7 +15,10 @@ const juce::String cutoffFrequencyID = "cutOffFrequency";
 const juce::String cutoffFrequencyName = "Cut off Frequency";
 
 const juce::String orderId = "order";
-const juce::String orderName = "order";
+const juce::String orderName = "Order";
+
+const juce::String typeId = "filterType";
+const juce::String typeName = "Filter Type";
 
 // Spatial processing
 const juce::String delayTimeID = "delay";

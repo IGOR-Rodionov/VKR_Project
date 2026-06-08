@@ -125,6 +125,7 @@ private:
     // Comboboxes
     juce::ComboBox filterTypeBox;
     juce::ComboBox lowFuncTypeBox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttach;
 
     /* Groups*/
     juce::GroupComponent processingSettingsGroup;

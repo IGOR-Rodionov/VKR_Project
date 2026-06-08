@@ -109,11 +109,6 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
                             nullptr);
                         audioProcessor.myConvolution.reset();
                         audioProcessor.myConvolution.loadImpulseResponse(audioProcessor.savedFile);
-                        audioProcessor.irLoader.reset();
-                        audioProcessor.irLoader.loadImpulseResponse(
-                            audioProcessor.savedFile,
-                            juce::dsp::Convolution::Stereo::yes,
-                            juce::dsp::Convolution::Trim::yes, 0);
                         irName.setText(result.getFileName(),
                             juce::dontSendNotification);
                     }
@@ -137,7 +132,8 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
     addAndMakeVisible(filterTypeBox);
     filterTypeBox.addItem("low-pass", 2);
     filterTypeBox.addItem("high-pass", 1);
-    filterTypeBox.addListener(this);
+    typeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+        audioProcessor.treeState, typeId, filterTypeBox);
 
     // Delay
     addAndMakeVisible(lowFuncTypeBox);

@@ -96,6 +96,7 @@ private:
     juce::OwnedArray<NOrderButterworth> channelFilters;
 
     int currentOrder = 4;
+
     juce::LinearSmoothedValue<float> smoothedCutoff;
     juce::LinearSmoothedValue<float> smoothedType;
 

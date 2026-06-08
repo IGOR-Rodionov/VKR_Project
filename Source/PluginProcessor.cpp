@@ -104,13 +104,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
 
     /* Set parametrs */
     // Frequency processing
-    auto pCuttOffFrequency = std::make_unique<juce::AudioParameterFloat>(cutoffFrequencyID,cutoffFrequencyName,cutOffFrequencyRange, 1000.0f);
-    auto pType = std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ "filterType", 1 },
-        "Filter Type",
-        juce::StringArray{ "Low Pass", "High Pass" },
-        0
-    );
+    auto pCuttOffFrequency = std::make_unique<juce::AudioParameterFloat>(cutoffFrequencyID, cutoffFrequencyName, juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f), 1000.0f);
+    auto pType = std::make_unique<juce::AudioParameterChoice>(typeId, typeName, juce::StringArray{ "Low Pass", "High Pass" }, 0);
     auto porder = std::make_unique<juce::AudioParameterInt>(orderId, orderName, 1, 8, 4);
 
     // Spatial processing
@@ -259,11 +254,11 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     spec.maximumBlockSize = samplesPerBlock;
     spec.maximumBlockSize = getMainBusNumOutputChannels();
 
+    // Frequency filters
     channelFilters.clear();
     const int numChannels = getTotalNumInputChannels();
-   
 
-    currentOrder = static_cast<int> (*treeState.getRawParameterValue(orderId));
+    currentOrder = static_cast<int>(*treeState.getRawParameterValue(orderId));
 
     for (int i = 0; i < numChannels; ++i)
     {
@@ -273,18 +268,11 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
         channelFilters.add(filter);
     }
 
-    smoothedCutoff.reset(sampleRate, 0.02);
-    smoothedType.reset(sampleRate, 0.02);
+    smoothedCutoff.reset(sampleRate, 0.03);
+    smoothedType.reset(sampleRate, 0.03);
 
     smoothedCutoff.setCurrentAndTargetValue(*treeState.getRawParameterValue(cutoffFrequencyID));
-    if (filterType == "low-pass")
-    {
-        smoothedType.setCurrentAndTargetValue(0);
-    }
-    if (filterType == "high-pass")
-    {
-        smoothedType.setCurrentAndTargetValue(1);
-    }
+    smoothedType.setCurrentAndTargetValue(*treeState.getRawParameterValue(typeId));
 
     // IR Reverb
     Spec.maximumBlockSize = samplesPerBlock;
@@ -353,7 +341,9 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     {
         juce::dsp::AudioBlock<float> block(buffer);
         juce::dsp::ProcessContextReplacing<float> context(block);
+
         myConvolution.process(context);
+
     }
     if (isDelayProcessing) 
     {
@@ -388,7 +378,7 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
             buffer.clear(i, 0, numSamples);
 
-        int newOrder = treeState.getRawParameterValue(orderId)->load();
+        int newOrder = static_cast<int>(*treeState.getRawParameterValue(orderId));
         if (newOrder != currentOrder)
         {
             currentOrder = newOrder;
@@ -399,15 +389,8 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             }
         }
 
-        smoothedCutoff.setTargetValue(treeState.getRawParameterValue(cutoffFrequencyID)->load());
-        if (filterType == "low-pass")
-        {
-            smoothedType.setTargetValue(0);
-        }
-        if (filterType == "high-pass")
-        {
-            smoothedType.setTargetValue(1);
-        }
+        smoothedCutoff.setTargetValue(*treeState.getRawParameterValue(cutoffFrequencyID));
+        smoothedType.setTargetValue(*treeState.getRawParameterValue(typeId));
 
         for (int sample = 0; sample < numSamples; ++sample)
         {
@@ -536,6 +519,12 @@ void VKRprojectAudioProcessor::setStateInformation (const void* data, int sizeIn
 
         savedFile = juce::File(variableTree.getProperty("file1"));
         root = juce::File(variableTree.getProperty("root"));
+
+        if (savedFile.existsAsFile())
+        {        
+            myConvolution.loadImpulseResponse(savedFile);
+        }
+
     }
 }
 

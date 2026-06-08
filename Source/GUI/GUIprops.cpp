@@ -81,10 +81,12 @@ void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
 void VKRprojectAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)
 {
     // Frequency
+    /*
     if (comboBoxThatHasChanged == &filterTypeBox)
     {
         audioProcessor.filterType = filterTypeBox.getItemText(filterTypeBox.getSelectedId());
     }
+    */
     // Delay
     if (comboBoxThatHasChanged == &lowFuncTypeBox)
     {

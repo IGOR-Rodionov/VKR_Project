@@ -15,17 +15,14 @@ class CustomConvolution
 public:
     CustomConvolution()
     {
-        // Регистрируем базовые форматы (Wav, Aiff), чтобы уметь читать файлы
         formatManager.registerBasicFormats();
     }
 
-    // Загрузка импульса из файла juce::File
     bool loadImpulseResponse(const juce::File& irFile)
     {
         if (!irFile.existsAsFile())
             return false;
 
-        // Создаем читатель файла
         std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(irFile));
 
         if (reader != nullptr)
@@ -33,18 +30,12 @@ public:
             juce::AudioBuffer<float> tempBuffer;
             tempBuffer.setSize((int)reader->numChannels, (int)reader->lengthInSamples);
 
-            // Читаем данные из файла в память
             reader->read(&tempBuffer, 0, (int)reader->lengthInSamples, 0, true, true);
 
-            // Если частота дискретизации файла отличается от плагина, 
-            // здесь в идеале нужен ресемплер. Для простоты импликации берем как есть.
-
-            // Потокобезопасно обновляем наш импульс
             const juce::ScopedLock sl(processLock);
             impulseResponse = tempBuffer;
             irLength = impulseResponse.getNumSamples();
 
-            // Пересоздаем буферы истории под новую длину IR
             updateHistoryBuffers();
             return true;
         }
@@ -52,7 +43,6 @@ public:
         return false;
     }
 
-    // Настройка параметров через ProcessSpec
     void prepare(const juce::dsp::ProcessSpec& spec)
     {
         const juce::ScopedLock sl(processLock);
@@ -64,10 +54,8 @@ public:
         updateHistoryBuffers();
     }
 
-    // Обработка звука (Прямая свёртка)
     void process(const juce::dsp::ProcessContextReplacing<float>& context)
     {
-        // Защита от одновременного чтения и загрузки нового файла IR
         const juce::ScopedTryLock sl(processLock);
 
         const auto& inputBlock = context.getInputBlock();
@@ -76,7 +64,6 @@ public:
         const int numSamples = (int)inputBlock.getNumSamples();
         const int numCh = (int)inputBlock.getNumChannels();
 
-        // Если IR не загружен или не удалось взять Lock — пропускаем чистый звук
         if (irLength == 0 || !sl.isLocked())
             return;
 
@@ -85,20 +72,17 @@ public:
             auto* input = inputBlock.getChannelPointer(ch);
             auto* output = outputBlock.getChannelPointer(ch);
 
-            // Защита на случай, если каналов в IR меньше, чем в треке
             auto* ir = impulseResponse.getReadPointer(juce::jmin(ch, impulseResponse.getNumChannels() - 1));
             auto* history = historyBuffers.getWritePointer(ch);
             int writeIdx = writeIndices[ch];
 
             for (int i = 0; i < numSamples; ++i)
             {
-                // Запись в круговой буфер
                 history[writeIdx] = input[i];
 
                 float outSample = 0.0f;
                 int readIdx = writeIdx;
 
-                // Цикл ручной свёртки
                 for (int j = 0; j < irLength; ++j)
                 {
                     outSample += history[readIdx] * ir[j];

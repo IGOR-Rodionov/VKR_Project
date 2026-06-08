@@ -24,12 +24,10 @@ public:
 
     NOrderButterworth() = default;
 
-    // Инициализация структуры фильтра под конкретный порядок
     void init(int order)
     {
         filterOrder = juce::jmax(1, order);
 
-        // Количество биквадратных звеньев (округляем вверх)
         int numBiquads = (filterOrder + 1) / 2;
         stages.resize(numBiquads);
 
@@ -59,7 +57,6 @@ public:
         updateCoefficients();
     }
 
-    // Последовательная обработка сэмпла через все звенья каскада
     forcedinline float processSample(float inputSample)
     {
         float output = inputSample;
@@ -73,7 +70,6 @@ public:
     }
 
 private:
-    // Структура одного биквадратного звена (Direct Form I)
     struct BiquadStage
     {
         float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
@@ -82,7 +78,7 @@ private:
         float x1 = 0.0f, x2 = 0.0f;
         float y1 = 0.0f, y2 = 0.0f;
 
-        bool isFirstOrder = false; // Флаг для нечетного порядка
+        bool isFirstOrder = false;
 
         void reset()
         {
@@ -95,12 +91,10 @@ private:
 
             if (isFirstOrder)
             {
-                // Разностное уравнение первого порядка
                 out = (b0 * in) + (b1 * x1) - (a1 * y1);
             }
             else
             {
-                // Стандартное разностное уравнение биквадрата (2-й порядок)
                 out = (b0 * in) + (b1 * x1) + (b2 * x2) - (a1 * y1) - (a2 * y2);
             }
 
@@ -124,7 +118,6 @@ private:
 
         for (int i = 0; i < numBiquads; ++i)
         {
-            // Проверяем, является ли это звено одиночным полюсом 1-го порядка (для нечетных порядков)
             if ((filterOrder % 2 != 0) && (i == numBiquads - 1))
             {
                 stages[i].isFirstOrder = true;
@@ -144,14 +137,11 @@ private:
             }
             else
             {
-                // Расчет добротности (Q) для Баттерворта n-го порядка
-                // Формула полюсов: k берется для конкретной пары сопряженных полюсов
                 stages[i].isFirstOrder = false;
                 int k = i + 1;
                 float poleAngle = juce::MathConstants<float>::pi * static_cast<float>(2 * k + filterOrder - 1) / static_cast<float>(2 * filterOrder);
                 float q = 1.0f / (-2.0f * std::cos(poleAngle));
 
-                // Расчет коэффициентов стандартного биквадрата Баттерворта
                 float K = tanTheta;
                 float norm = 1.0f / (1.0f + K / q + K * K);
 
@@ -174,7 +164,7 @@ private:
         }
     }
 
-    int filterOrder = 4; // По умолчанию 4-й порядок (24 дБ/окт)
+    int filterOrder = 4;
     double currentSampleRate = 44100.0;
     FilterType currentType = FilterType::LowPass;
     float targetCutoff = 1000.0f;

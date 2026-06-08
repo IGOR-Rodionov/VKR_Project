@@ -18,6 +18,9 @@ extern const juce::String cutoffFrequencyName;
 extern const juce::String orderId;
 extern const juce::String orderName;
 
+extern const juce::String typeId;
+extern const juce::String typeName;
+
 // Spatial processing
 extern const juce::String delayTimeID;
 extern const juce::String delayTimeName;
