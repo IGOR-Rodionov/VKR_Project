@@ -86,9 +86,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
 {
     /* Set Slider's range */
     // Frequency processing
-    juce::NormalisableRange<float> cutOffFrequencyRange = juce::NormalisableRange<float>(20.f, 22000.f, 10.f);
-    cutOffFrequencyRange.setSkewForCentre(3500.f);
-    juce::NormalisableRange<float> orderRange = juce::NormalisableRange<float>(1.f, 8.f, 1.f);
+    juce::NormalisableRange<float> cutOffFrequencyRange(20.0f, 20000.0f, 1.0f);
+    cutOffFrequencyRange.setSkewForCentre(1000.0f); // 1 кГц будет ровно посередине слайдера
+
+
 
     // Spatial processing
     juce::NormalisableRange<float> delayTimeRange = juce::NormalisableRange<float>(0.f, 2000.f, 10.f);
@@ -105,8 +106,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
 
     /* Set parametrs */
     // Frequency processing
-    auto pCuttOffFrequency = std::make_unique<juce::AudioParameterFloat>(cutoffFrequencyID, cutoffFrequencyName, cutOffFrequencyRange, 200.f);
-    auto porder = std::make_unique<juce::AudioParameterFloat>(orderId, orderName, orderRange, 50.f);
+    auto pCuttOffFrequency = std::make_unique<juce::AudioParameterFloat>(cutoffFrequencyID,cutoffFrequencyName,cutOffFrequencyRange, 1000.0f);
+    auto pType = std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ "filterType", 1 },
+        "Filter Type",
+        juce::StringArray{ "Low Pass", "High Pass" },
+        0
+    );
+    auto porder = std::make_unique<juce::AudioParameterInt>(orderId, orderName, 1, 8, 4);
 
     // Spatial processing
     auto pDelayTime = std::make_unique<juce::AudioParameterFloat>(delayTimeID, delayTimeName, delayTimeRange, 200.f);
@@ -129,6 +136,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
 
     // Frequency processing
     params.push_back(std::move(pCuttOffFrequency));
+    params.push_back(std::move(pType));
     params.push_back(std::move(porder));
 
     // Spatial processing
@@ -164,6 +172,9 @@ void VKRprojectAudioProcessor::updateParameters()
     Width = treeState.getRawParameterValue(widthID)->load();
 
     // Frequency filters
+
+
+    /*
     if (filterType == "high-pass")
     {
         stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::highPass;
@@ -231,7 +242,7 @@ void VKRprojectAudioProcessor::updateParameters()
             *filter8Chain.get<3>().coefficients = *coefficientsArray[3];
         }
     }
-
+    */
     // Compressor
     inputModule.setGainDecibels(treeState.getRawParameterValue(inputID)->load());
 
@@ -323,6 +334,7 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     spec.maximumBlockSize = getMainBusNumOutputChannels();
 
     // Frequency filters
+    /*
     lastSampleRate = sampleRate;
     filter2Chain.reset();
     filter4Chain.reset();
@@ -332,6 +344,34 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     filter4Chain.prepare(spec);
     filter6Chain.prepare(spec);
     filter8Chain.prepare(spec);
+    */
+    channelFilters.clear();
+    const int numChannels = getTotalNumInputChannels();
+   
+
+    currentOrder = static_cast<int> (*treeState.getRawParameterValue(orderId));
+
+    for (int i = 0; i < numChannels; ++i)
+    {
+        auto* filter = new NOrderButterworth();
+        filter->init(currentOrder);
+        filter->prepare(sampleRate);
+        channelFilters.add(filter);
+    }
+
+    smoothedCutoff.reset(sampleRate, 0.02); // 20 мс время сглаживания
+    smoothedType.reset(sampleRate, 0.02);
+
+    smoothedCutoff.setCurrentAndTargetValue(*treeState.getRawParameterValue(cutoffFrequencyID));
+    //smoothedType.setCurrentAndTargetValue(*apvts.getRawParameterValue("filterType"));
+    if (filterType == "low-pass")
+    {
+        smoothedType.setCurrentAndTargetValue(0);
+    }
+    if (filterType == "high-pass")
+    {
+        smoothedType.setCurrentAndTargetValue(1);
+    }
 
     // IR Reverb
     Spec.maximumBlockSize = samplesPerBlock;
@@ -341,6 +381,25 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     irLoader.reset();
     irLoader.prepare(Spec);
 
+    myConvolution.reset();
+    myConvolution.prepare(Spec);
+
+    /*
+    convolver.loadImpulseResponse(savedFile, sampleRate);
+
+    dspChain.prepare(Spec);
+
+    // Mock an impulse response for testing (e.g., a simple Dirac impulse)
+    irAudioBuffer.setSize(getTotalNumOutputChannels(), 512);
+    irAudioBuffer.clear();
+    for (int ch = 0; ch < irAudioBuffer.getNumChannels(); ++ch) 
+    {
+        irAudioBuffer.setSample(ch, 0, 1.0f);
+    }
+
+    // Push the IR structure down to our specific index inside the processor chain
+    dspChain.get<0>().setImpulseResponse(irAudioBuffer);
+    */
     // Delay
     auto DelayBufferSize = sampleRate * 2.;
     DelayBuffer.setSize(getTotalNumOutputChannels(), (int)DelayBufferSize);
@@ -361,6 +420,7 @@ void VKRprojectAudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
+    channelFilters.clear();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -397,11 +457,23 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     if (isReverbProcessing) 
     {
+        // Wrap the standard audio buffer into a JUCE DSP AudioBlock framework
+        juce::dsp::AudioBlock<float> block(buffer);
+        juce::dsp::ProcessContextReplacing<float> context(block);
+
+        // Processes the block directly using your custom engine
+        //dspChain.process(context);
+        //convolver.process(context);
+        myConvolution.process(context);
+
+        /*
         juce::dsp::AudioBlock<float> block{ buffer };
         if (irLoader.getCurrentIRSize() > 0)
         {
             irLoader.process(juce::dsp::ProcessContextReplacing<float>(block));
+            //reverb.process(juce::dsp::ProcessContextReplacing<float>(block));      
         }
+        */
     }
     if (isDelayProcessing) 
     {
@@ -431,6 +503,58 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     }
     if (isFrequencyProcessing)
     {
+        const int numSamples = buffer.getNumSamples();
+
+        for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+            buffer.clear(i, 0, numSamples);
+
+        // 1. Проверяем динамическое изменение порядка фильтра
+        int newOrder = treeState.getRawParameterValue(orderId)->load();
+        if (newOrder != currentOrder)
+        {
+            currentOrder = newOrder;
+            for (auto* filter : channelFilters)
+            {
+                filter->init(currentOrder);
+                filter->prepare(getSampleRate());
+            }
+        }
+
+        // 2. Устанавливаем цели для плавных параметров
+        smoothedCutoff.setTargetValue(treeState.getRawParameterValue(cutoffFrequencyID)->load());
+        if (filterType == "low-pass")
+        {
+            smoothedType.setTargetValue(0);
+        }
+        if (filterType == "high-pass")
+        {
+            smoothedType.setTargetValue(1);
+        }
+
+        // 3. Посэмпловая обработка блока
+        for (int sample = 0; sample < numSamples; ++sample)
+        {
+            float currentCutoff = smoothedCutoff.getNextValue();
+            auto currentTypeIndex = static_cast<int>(std::round(smoothedType.getNextValue()));
+
+            NOrderButterworth::FilterType type = (currentTypeIndex == 1) ?
+                NOrderButterworth::FilterType::HighPass : NOrderButterworth::FilterType::LowPass;
+
+            for (int channel = 0; channel < totalNumInputChannels; ++channel)
+            {
+                if (channel < channelFilters.size())
+                {
+                    auto* channelData = buffer.getWritePointer(channel);
+
+                    // Пересчитываем коэффициенты под сглаженную частоту
+                    channelFilters[channel]->setParameters(type, currentCutoff);
+
+                    // Пропускаем сэмпл через каскад биквадратов
+                    channelData[sample] = channelFilters[channel]->processSample(channelData[sample]);
+                }
+            }
+        }
+        /*
         juce::dsp::AudioBlock<float> block(buffer);
         juce::dsp::ProcessContextReplacing<float> context(block);
 
@@ -455,6 +579,7 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         {
             filter8Chain.process(context);
         }
+        */
     }
     if (isDynamicProcessing) 
     {

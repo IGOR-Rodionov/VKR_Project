@@ -107,6 +107,8 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
                         audioProcessor.variableTree.setProperty("root",
                             audioProcessor.savedFile.getParentDirectory().getFullPathName(),
                             nullptr);
+                        audioProcessor.myConvolution.reset();
+                        audioProcessor.myConvolution.loadImpulseResponse(audioProcessor.savedFile);
                         audioProcessor.irLoader.reset();
                         audioProcessor.irLoader.loadImpulseResponse(
                             audioProcessor.savedFile,

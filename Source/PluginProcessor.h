@@ -11,6 +11,8 @@
 #include <JuceHeader.h>
 #include"../Source/Parametrs/Parametrs.h"
 #include "../Source/DSP/LVCompressor.h"
+#include "../Source/DSP/ConvolutionReverb.h"
+#include "../Source/DSP/CustomFilter.h"
 
 //==============================================================================
 /**
@@ -75,6 +77,14 @@ public:
     // Reverb
     juce::File root, savedFile;
     juce::dsp::Convolution irLoader;
+    //ConvolutionReverb reverb;
+    /*
+    juce::dsp::ProcessorChain<CustomConvolver<float>> dspChain;
+    juce::AudioBuffer<float> irAudioBuffer;
+
+    CustomConvolver convolver;
+    */
+    CustomConvolution myConvolution;
 
     juce::ValueTree variableTree;
     juce::AudioProcessorValueTreeState treeState;
@@ -98,6 +108,14 @@ private:
     juce::dsp::ProcessorChain<FilterType, FilterType> filter4Chain;
     juce::dsp::ProcessorChain<FilterType, FilterType, FilterType> filter6Chain;
     juce::dsp::ProcessorChain<FilterType, FilterType, FilterType, FilterType> filter8Chain;
+
+    juce::OwnedArray<NOrderButterworth> channelFilters;
+
+    int currentOrder = 4; // Храним текущий порядок для отслеживания изменений
+
+    // Сглаживатели для устранения цифровых щелчков
+    juce::LinearSmoothedValue<float> smoothedCutoff;
+    juce::LinearSmoothedValue<float> smoothedType;
 
     //Reverb
     juce::dsp::ProcessSpec Spec;
