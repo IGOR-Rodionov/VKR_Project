@@ -87,9 +87,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout VKRprojectAudioProcessor::cr
     /* Set Slider's range */
     // Frequency processing
     juce::NormalisableRange<float> cutOffFrequencyRange(20.0f, 20000.0f, 1.0f);
-    cutOffFrequencyRange.setSkewForCentre(1000.0f); // 1 кГц будет ровно посередине слайдера
-
-
+    cutOffFrequencyRange.setSkewForCentre(1000.0f);
 
     // Spatial processing
     juce::NormalisableRange<float> delayTimeRange = juce::NormalisableRange<float>(0.f, 2000.f, 10.f);
@@ -171,78 +169,6 @@ void VKRprojectAudioProcessor::updateParameters()
     Balance = treeState.getRawParameterValue(balanceID)->load() / 100;
     Width = treeState.getRawParameterValue(widthID)->load();
 
-    // Frequency filters
-
-
-    /*
-    if (filterType == "high-pass")
-    {
-        stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::highPass;
-        auto coefficientsArray = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
-            treeState.getRawParameterValue(cutoffFrequencyID)->load(),
-            lastSampleRate,
-            treeState.getRawParameterValue(orderId)->load()
-        );
-
-        if (treeState.getRawParameterValue(orderId)->load() == 2)
-        {
-            *filter2Chain.get<0>().coefficients = *coefficientsArray[0];
-        }
-        if (treeState.getRawParameterValue(orderId)->load() == 4)
-        {
-            *filter4Chain.get<0>().coefficients = *coefficientsArray[0];
-            *filter4Chain.get<1>().coefficients = *coefficientsArray[1];
-        }
-        if (treeState.getRawParameterValue(orderId)->load() == 6)
-        {
-            *filter6Chain.get<0>().coefficients = *coefficientsArray[0];
-            *filter6Chain.get<1>().coefficients = *coefficientsArray[1];
-            *filter6Chain.get<2>().coefficients = *coefficientsArray[2];
-        }
-        if (treeState.getRawParameterValue(orderId)->load() == 8)
-        {
-            *filter8Chain.get<0>().coefficients = *coefficientsArray[0];
-            *filter8Chain.get<1>().coefficients = *coefficientsArray[1];
-            *filter8Chain.get<2>().coefficients = *coefficientsArray[2];
-            *filter8Chain.get<3>().coefficients = *coefficientsArray[3];
-        }
-    }
-    else //if (filterType == "low-pass")
-    {
-        stateVariableFilter.state->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass;
-        auto coefficientsArray = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
-            treeState.getRawParameterValue(cutoffFrequencyID)->load(),
-            lastSampleRate,
-            treeState.getRawParameterValue(orderId)->load()
-        );
-
-        if (treeState.getRawParameterValue(orderId)->load() <= 2)
-        {
-            *filter2Chain.get<0>().coefficients = *coefficientsArray[0];
-        }
-        if (treeState.getRawParameterValue(orderId)->load() <= 4 &&
-            treeState.getRawParameterValue(orderId)->load() > 2)
-        {
-            *filter4Chain.get<0>().coefficients = *coefficientsArray[0];
-            *filter4Chain.get<1>().coefficients = *coefficientsArray[1];
-        }
-        if (treeState.getRawParameterValue(orderId)->load() <= 6 &&
-            treeState.getRawParameterValue(orderId)->load() > 4)
-        {
-            *filter6Chain.get<0>().coefficients = *coefficientsArray[0];
-            *filter6Chain.get<1>().coefficients = *coefficientsArray[1];
-            *filter6Chain.get<2>().coefficients = *coefficientsArray[2];
-        }
-        if (treeState.getRawParameterValue(orderId)->load() <= 8 &&
-            treeState.getRawParameterValue(orderId)->load() > 6)
-        {
-            *filter8Chain.get<0>().coefficients = *coefficientsArray[0];
-            *filter8Chain.get<1>().coefficients = *coefficientsArray[1];
-            *filter8Chain.get<2>().coefficients = *coefficientsArray[2];
-            *filter8Chain.get<3>().coefficients = *coefficientsArray[3];
-        }
-    }
-    */
     // Compressor
     inputModule.setGainDecibels(treeState.getRawParameterValue(inputID)->load());
 
@@ -333,18 +259,6 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     spec.maximumBlockSize = samplesPerBlock;
     spec.maximumBlockSize = getMainBusNumOutputChannels();
 
-    // Frequency filters
-    /*
-    lastSampleRate = sampleRate;
-    filter2Chain.reset();
-    filter4Chain.reset();
-    filter6Chain.reset();
-    filter8Chain.reset();
-    filter2Chain.prepare(spec);
-    filter4Chain.prepare(spec);
-    filter6Chain.prepare(spec);
-    filter8Chain.prepare(spec);
-    */
     channelFilters.clear();
     const int numChannels = getTotalNumInputChannels();
    
@@ -359,11 +273,10 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
         channelFilters.add(filter);
     }
 
-    smoothedCutoff.reset(sampleRate, 0.02); // 20 мс время сглаживания
+    smoothedCutoff.reset(sampleRate, 0.02);
     smoothedType.reset(sampleRate, 0.02);
 
     smoothedCutoff.setCurrentAndTargetValue(*treeState.getRawParameterValue(cutoffFrequencyID));
-    //smoothedType.setCurrentAndTargetValue(*apvts.getRawParameterValue("filterType"));
     if (filterType == "low-pass")
     {
         smoothedType.setCurrentAndTargetValue(0);
@@ -378,28 +291,9 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     Spec.sampleRate = sampleRate;
     Spec.numChannels = getTotalNumOutputChannels();
 
-    irLoader.reset();
-    irLoader.prepare(Spec);
-
     myConvolution.reset();
     myConvolution.prepare(Spec);
 
-    /*
-    convolver.loadImpulseResponse(savedFile, sampleRate);
-
-    dspChain.prepare(Spec);
-
-    // Mock an impulse response for testing (e.g., a simple Dirac impulse)
-    irAudioBuffer.setSize(getTotalNumOutputChannels(), 512);
-    irAudioBuffer.clear();
-    for (int ch = 0; ch < irAudioBuffer.getNumChannels(); ++ch) 
-    {
-        irAudioBuffer.setSample(ch, 0, 1.0f);
-    }
-
-    // Push the IR structure down to our specific index inside the processor chain
-    dspChain.get<0>().setImpulseResponse(irAudioBuffer);
-    */
     // Delay
     auto DelayBufferSize = sampleRate * 2.;
     DelayBuffer.setSize(getTotalNumOutputChannels(), (int)DelayBufferSize);
@@ -457,23 +351,9 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     if (isReverbProcessing) 
     {
-        // Wrap the standard audio buffer into a JUCE DSP AudioBlock framework
         juce::dsp::AudioBlock<float> block(buffer);
         juce::dsp::ProcessContextReplacing<float> context(block);
-
-        // Processes the block directly using your custom engine
-        //dspChain.process(context);
-        //convolver.process(context);
         myConvolution.process(context);
-
-        /*
-        juce::dsp::AudioBlock<float> block{ buffer };
-        if (irLoader.getCurrentIRSize() > 0)
-        {
-            irLoader.process(juce::dsp::ProcessContextReplacing<float>(block));
-            //reverb.process(juce::dsp::ProcessContextReplacing<float>(block));      
-        }
-        */
     }
     if (isDelayProcessing) 
     {
@@ -508,7 +388,6 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
             buffer.clear(i, 0, numSamples);
 
-        // 1. Проверяем динамическое изменение порядка фильтра
         int newOrder = treeState.getRawParameterValue(orderId)->load();
         if (newOrder != currentOrder)
         {
@@ -520,7 +399,6 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             }
         }
 
-        // 2. Устанавливаем цели для плавных параметров
         smoothedCutoff.setTargetValue(treeState.getRawParameterValue(cutoffFrequencyID)->load());
         if (filterType == "low-pass")
         {
@@ -531,7 +409,6 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             smoothedType.setTargetValue(1);
         }
 
-        // 3. Посэмпловая обработка блока
         for (int sample = 0; sample < numSamples; ++sample)
         {
             float currentCutoff = smoothedCutoff.getNextValue();
@@ -545,41 +422,11 @@ void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
                 if (channel < channelFilters.size())
                 {
                     auto* channelData = buffer.getWritePointer(channel);
-
-                    // Пересчитываем коэффициенты под сглаженную частоту
                     channelFilters[channel]->setParameters(type, currentCutoff);
-
-                    // Пропускаем сэмпл через каскад биквадратов
                     channelData[sample] = channelFilters[channel]->processSample(channelData[sample]);
                 }
             }
         }
-        /*
-        juce::dsp::AudioBlock<float> block(buffer);
-        juce::dsp::ProcessContextReplacing<float> context(block);
-
-        updateParameters();
-        if (treeState.getRawParameterValue(orderId)->load() <= 2)
-        {
-            filter2Chain.process(context);
-        }
-        if (treeState.getRawParameterValue(orderId)->load() <= 4 &&
-            treeState.getRawParameterValue(orderId)->load() > 2)
-        {
-            filter4Chain.process(context);
-        }
-        if (treeState.getRawParameterValue(orderId)->load() <= 6 &&
-            treeState.getRawParameterValue(orderId)->load() > 4)
-        {
-            filter6Chain.process(context);
-        }
-
-        if (treeState.getRawParameterValue(orderId)->load() <= 8 &&
-            treeState.getRawParameterValue(orderId)->load() > 6)
-        {
-            filter8Chain.process(context);
-        }
-        */
     }
     if (isDynamicProcessing) 
     {
@@ -689,13 +536,6 @@ void VKRprojectAudioProcessor::setStateInformation (const void* data, int sizeIn
 
         savedFile = juce::File(variableTree.getProperty("file1"));
         root = juce::File(variableTree.getProperty("root"));
-
-        if (savedFile.existsAsFile())
-        {
-            irLoader.loadImpulseResponse(savedFile,
-                juce::dsp::Convolution::Stereo::yes,
-                juce::dsp::Convolution::Trim::yes, 0);
-        }
     }
 }
 

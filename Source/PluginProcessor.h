@@ -76,14 +76,6 @@ public:
 
     // Reverb
     juce::File root, savedFile;
-    juce::dsp::Convolution irLoader;
-    //ConvolutionReverb reverb;
-    /*
-    juce::dsp::ProcessorChain<CustomConvolver<float>> dspChain;
-    juce::AudioBuffer<float> irAudioBuffer;
-
-    CustomConvolver convolver;
-    */
     CustomConvolution myConvolution;
 
     juce::ValueTree variableTree;
@@ -101,19 +93,9 @@ private:
     bool isDynamicProcessing = false;
 
     // Frequency filters
-    juce::dsp::ProcessorDuplicator<juce::dsp::StateVariableFilter::Filter<float>, juce::dsp::StateVariableFilter::Parameters<float>> stateVariableFilter;
-
-    using FilterType = juce::dsp::IIR::Filter<float>;
-    juce::dsp::ProcessorChain<FilterType> filter2Chain;
-    juce::dsp::ProcessorChain<FilterType, FilterType> filter4Chain;
-    juce::dsp::ProcessorChain<FilterType, FilterType, FilterType> filter6Chain;
-    juce::dsp::ProcessorChain<FilterType, FilterType, FilterType, FilterType> filter8Chain;
-
     juce::OwnedArray<NOrderButterworth> channelFilters;
 
-    int currentOrder = 4; // Храним текущий порядок для отслеживания изменений
-
-    // Сглаживатели для устранения цифровых щелчков
+    int currentOrder = 4;
     juce::LinearSmoothedValue<float> smoothedCutoff;
     juce::LinearSmoothedValue<float> smoothedType;
 
