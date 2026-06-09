@@ -144,6 +144,20 @@ label.setFont(juce::Font("Helvetica", 16.f, juce::Font::FontStyleFlags::bold));
 label.setJustificationType(juce::Justification::centred);
 ```
 
+Метод `setCommonButtonProps()` используется для настройки радиокнопок. В нём кнопки добавляются на интерфейс, их ширина подстраивается так, чтобы уместить текст, и наконец включается визуальное отображение включённого и отключеённого состояния.
+
+```
+addAndMakeVisible(button);
+button.changeWidthToFitText();
+button.setClickingTogglesState(true);
+```
+
+Последний метод данного файла — `attachSliders()`. В методах `buttonClicked()` и `comboBoxChanged()` был показан один способ того, как можно связать данный из интерфейса и модуля обработки. В данном методе представлен альтернативный вариант. Сначала внутри класса `PluginEditor` нужно объявить поле `AudioProcessorValueTreeState::SliderAttachment`, которое будет отвечать за привязку ползунка к параметру обработки. Затем с помощью метода `AudioProcessorValueTreeState::SliderAttachment` можно привезать ползунок, обозначенный как `Slider`, к конкретному параметру обработки через `parametrID`. Параметры обработки будут описаны в блоке с логикой программного модуля.
+
+```
+sliderAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.treeState, parametrID, Slider);
+```
+
 ## Логика программного модуля
 
 ### Класс LVCompressor
