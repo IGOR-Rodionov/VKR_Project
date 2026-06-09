@@ -13,13 +13,6 @@
 #include <vector>
 #include <cmath>
 
-// Filter type
-enum class FilterType
-{
-    LowPass,
-    HighPass
-};
-
 struct BiquadStage
 {
     // Filter coefficients
@@ -65,6 +58,13 @@ struct BiquadStage
 class NOrderButterworth
 {
 public:
+    // Filter type
+    enum class FilterType
+    {
+        LowPass,
+        HighPass
+    };
+
     NOrderButterworth() = default;
 
     // Initialization of filter
