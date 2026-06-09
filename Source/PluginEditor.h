@@ -31,6 +31,8 @@ public:
     void resized() override;
 
 private:
+    // This reference is provided as a quick way for your editor to
+    // access the processor object that created it.
     /* Sliders */
     // Frequency
     juce::Slider frequencySlider;
@@ -92,7 +94,7 @@ private:
 
     std::vector<juce::Label*> slidersLabels =
     {
-        &frequencyLabel, &orderLabel,
+        &frequencyLabel, &orderLabel
         &delayLabel, &balanceLabel, &widthLabel,
         &inputSliderLabel,&threshSliderLabel,&ratioSliderLabel,&limiterThreshSliderLabel,
         &outputSliderLabel,&attackSliderLabel,&releaseSliderLabel,&limiterReleaseSliderLabel,
@@ -104,7 +106,6 @@ private:
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     /* Toggle buttons */
-    // Prcessing type buttons
     juce::ToggleButton frequencyButton{ "Frequency processing" };
     juce::ToggleButton delayEffectsButton{ "Delay effects" };
     juce::ToggleButton reverbButton{ "IR Convolution" };
@@ -124,10 +125,8 @@ private:
     // Comboboxes
     juce::ComboBox filterTypeBox;
     juce::ComboBox lowFuncTypeBox;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttach;
 
     /* Groups*/
-    // Prcessing type groups
     juce::GroupComponent processingSettingsGroup;
     juce::GroupComponent frequencyGroup;
     juce::GroupComponent delayEffectsGroup;

@@ -27,7 +27,8 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
     , limiterReleaseSliderLabel("Release", "Release")
     , outputSliderLabel("Output", "Output")
 {
-    // Window
+    // Make sure that before the constructor has finished, you've set the
+    // editor's size to whatever you need it to be.
     setSize(1000, 675);
     juce::AudioProcessorEditor::setResizable(true, true);
     juce::AudioProcessorEditor::setResizeLimits(getWidth() * 0.75,
@@ -79,20 +80,6 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
     {
         setCommonButtonProps(*buttons[i]);
     }
-    frequencyButton.setRadioGroupId(1234);
-    delayEffectsButton.setRadioGroupId(1234);
-    reverbButton.setRadioGroupId(1234);
-    dynamicButton.setRadioGroupId(1234);
-
-    frequencyButton.onClick = [this] { buttonClicked(&frequencyButton); };
-    delayEffectsButton.onClick = [this] { buttonClicked(&delayEffectsButton); };
-    reverbButton.onClick = [this] { buttonClicked(&reverbButton); };
-    dynamicButton.onClick = [this] { buttonClicked(&dynamicButton); };
-
-    chorusButton.onClick = [this] { buttonClicked(&chorusButton); };
-    feedbackButton.onClick = [this] { buttonClicked(&feedbackButton); };
-
-    // Setting load IR button
     addAndMakeVisible(loadBtn);
     loadBtn.setButtonText("Load IR");
     loadBtn.onClick = [this]()
@@ -120,21 +107,35 @@ VKRprojectAudioProcessorEditor::VKRprojectAudioProcessorEditor (VKRprojectAudioP
                         audioProcessor.variableTree.setProperty("root",
                             audioProcessor.savedFile.getParentDirectory().getFullPathName(),
                             nullptr);
-                        audioProcessor.myConvolution.reset();
-                        audioProcessor.myConvolution.loadImpulseResponse(audioProcessor.savedFile);
+                        audioProcessor.irLoader.reset();
+                        audioProcessor.irLoader.loadImpulseResponse(
+                            audioProcessor.savedFile,
+                            juce::dsp::Convolution::Stereo::yes,
+                            juce::dsp::Convolution::Trim::yes, 0);
                         irName.setText(result.getFileName(),
                             juce::dontSendNotification);
                     }
                 });
         };
+    frequencyButton.setRadioGroupId(1234);
+    delayEffectsButton.setRadioGroupId(1234);
+    reverbButton.setRadioGroupId(1234);
+    dynamicButton.setRadioGroupId(1234);
+
+    frequencyButton.onClick = [this] { buttonClicked(&frequencyButton); };
+    delayEffectsButton.onClick = [this] { buttonClicked(&delayEffectsButton); };
+    reverbButton.onClick = [this] { buttonClicked(&reverbButton); };
+    dynamicButton.onClick = [this] { buttonClicked(&dynamicButton); };
+
+    chorusButton.onClick = [this] { buttonClicked(&chorusButton); };
+    feedbackButton.onClick = [this] { buttonClicked(&feedbackButton); };
 
     /* Comboboxes */
     // Frequency
     addAndMakeVisible(filterTypeBox);
     filterTypeBox.addItem("low-pass", 2);
     filterTypeBox.addItem("high-pass", 1);
-    typeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        audioProcessor.treeState, typeId, filterTypeBox);
+    filterTypeBox.addListener(this);
 
     // Delay
     addAndMakeVisible(lowFuncTypeBox);
@@ -185,7 +186,6 @@ void VKRprojectAudioProcessorEditor::paint (juce::Graphics& g)
 
 void VKRprojectAudioProcessorEditor::resized()
 {
-    // Setup margins and sizes
     auto LeftMargin = getWidth() * 0.004;
     auto UpMargin = getHeight() * 0.1;
 
@@ -200,7 +200,7 @@ void VKRprojectAudioProcessorEditor::resized()
     auto ButtonSize = getWidth() * 0.035;
     auto ButtonMargin = 1.25;
 
-    /* Frequency filters */
+    /* Freq filters */
     //Sliders
     frequencySlider.setBounds(LeftMargin, UpMargin, SliderWidth, SliderWidth);
     orderSlider.setBounds(frequencySlider.getX() + frequencySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
@@ -208,7 +208,7 @@ void VKRprojectAudioProcessorEditor::resized()
     // Combobox
     filterTypeBox.setBounds(LeftMargin * 6, UpMargin + frequencySlider.getHeight() * 1.1, SliderWidth * 1.8, ButtonSize);
 
-    /* Delay effects*/
+    /* Delay */
     // Sliders
     DelaySlider.setBounds(orderSlider.getX() + SliderWidth * 1.2, UpMargin, SliderWidth, SliderWidth);
     BalanceSlider.setBounds(DelaySlider.getX() + DelaySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
