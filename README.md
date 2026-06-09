@@ -38,6 +38,56 @@ void LVCompressor::process(juce::AudioBuffer<float>& buffer) noexcept
     }
 }
 ```
+Метод `processSample()` подсчитывает новое значение одной конкретной выборки сигнала. Сначала метод переводит значения параметров `_attack` и `_release` из милисекунд в выборки и записывает полученные значения в локальны переменные.
+
+```
+auto alphaAttack = std::exp((std::log(9) * -1.) / (_samplerate * _attack));
+auto alphaRelease = std::exp((std::log(9) * -1.) / (_samplerate * _release));
+```
+
+Затем значение выборки сигнала записывается в локальную переменную, чтобы обезопасить себя от непреднамеренного изменения зна чения исходного сигнала. После считается значение данной выборки по модулю, и оно переводится в цифровые децибелы с помощью метода `juce::Decibels::gainToDecibels(x_Uni)`
+```
+const auto x = input;
+auto x_Uni = abs(x);
+auto x_dB = juce::Decibels::gainToDecibels(x_Uni);
+```
+Последним шагом перед компрессией является проверка числа на минус бесконечность. Чем меньше по модулю исходная выборка сигнала, тем ближе она будет к минус бесконечности при переводе в цифровые децибелы. Чтобы избежать возможные математические ошибки, устанавляивается минмальнон значение сигнала, равное -96 дБ.
+```
+if (x_dB < -96.)
+{
+    x_dB = -96.;
+}
+```
+Теперь метод приступает к компрессии сигнала в соответсвии с формулами (1.12)‐(1.14). Поле `gainSC` используется для хранения значения G после формулы (1.12), затем разница между `gainSC` и исходным сигналом записывается в поле `gainChange_dB`. Это значение сравнивается с предыдушем значением переменной, которое хранится в поле `gainSmoothPrevious`, и применяется формула (1.13). И наконец новое значение записывается `gainSmoothPrevious` и считается значение обработанной выборки по формуле (1.14).
+
+```
+if (x_dB > _thresh)
+{
+    gainSC = _thresh + (x_dB - _thresh) / _ratio;
+}
+else
+{
+    gainSC = x_dB;
+}
+
+gainChange_dB = gainSC - x_dB;
+if (gainChange_dB < gainSmoothPrevious)
+{
+    gainSmooth = ((1 - alphaAttack) * gainChange_dB) + (alphaAttack * gainSmoothPrevious);
+}
+else
+{
+    gainSmooth = ((1 - alphaRelease) * gainChange_dB) + (alphaRelease * gainSmoothPrevious);
+}
+
+gainSmoothPrevious = gainSmooth;
+auto wetInput = x * juce::Decibels::decibelsToGain(gainSmooth);
+```
+Посчитанное значение называют мокрым (wet), а исходное необработанное значение — сухим (dry). В зависимости от влечины `_mix` можно варировать содержание обработанного и исходжного звука в результирующем сигнале: если `_mix` равен 1, то сигнал будет содержать только обработанный звук, а если 0 — только исходный.
+```
+auto mix = (1. - _mix.getNextValue()) * x + wetInput * _mix.getNextValue();
+return mix;
+```
 
 ### Класс NOrderButterworth
 
