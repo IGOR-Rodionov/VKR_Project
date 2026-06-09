@@ -10,6 +10,103 @@
 
 ### Класс PluginEditor
 
+Класс `PluginEditor` является наследником базового класса `juce::AudioProcessorEditor`, который используется для создания пользовательских графических интерфейсов. Также он является наследником ещё 2 классов —  `juce::ToggleButton::Listener` и `juce::ComboBox::Listener`, которые используется для отслеживания изменения значений кнопок и выпадающих списков внутри данного класса. Класс содержит десятки полей, так как каждый элемент интерфейса объявлен в качестве поля. Основные элименты интерфейса — это ползунки `juce::Slider`, которые используется для регулировки значений параметров обработки. Другими элементами управления является радиокнопки `juce::ToggleButton`, использующиеся для включений различных опций обработки; выпадающее меню `juce::ComboBox`, использующиеся для выбра опции из нескольких вариантов, и одна кнопка `juce::TextButton`, применяемая для загрузки файла по нажатию. Чтобы понимать, за какой параметр отвечает конкретный элемент интерфейса, в классе объявляются поля подписи `juce::Label`, и группы `juce::GroupComponent`, чтобы их было удоюнее искать. Все поля, имеющий общий тип, объединяются в векторы для более удобного взаимодействия с множеством всех полей разом, что происходит достаточно часто, так как элменты интерфейса имеют общие черты.
+
+В конструкторе класса `PluginEditor` следует настроить поля интерфейса и вывести их на интерфейсе, используя метод `addAndMakeVisible()`. Самой частой настройкой элементов является настройка их подписей. Для настройки подписи единиц измерений у ползунков используется метод `setTextValueSuffix()` и для настройки текста подписей и групп — метод `setText()`. Другими важными методами являются метод привязка подписей к ползункам через метод `attachToComponent()`, объединение радиокноп в одну группу с помощью метода `setRadioGroupId()`, чтобы не было возможны активировать сразу несколько кнопок из одной группы и привязка вызова функции при нажатии на одну из кнопок с помощью метода `onClick = []{}`. Но помимо настройки элементов интерфейса здесь происходит настройка и самого окна интерфейса. Сначала с помощью функции `setSize()` задаётся размер окна, затем вызовом метода `setResizable()` разрешается масштабирования окна по вертикали и горизонтали и наконец с помощью меоды `setResizeLimits()` устанавливается лимит масштабирования, равный 25 % от изначального размера окна.
+```
+setSize(1000, 675);
+juce::AudioProcessorEditor::setResizable(true, true);
+juce::AudioProcessorEditor::setResizeLimits(getWidth() * 0.75,
+        getHeight() * 0.75, getWidth() * 1.75, getHeight() * 1.75);
+juce::AudioProcessorEditor::getConstrainer()->setFixedAspectRatio(1.49);
+```
+
+Также важно не забыть о деструкторе классе `PluginEditor`, в котором через цикл удаляется пользовательский внешний вид ползунков. После завершения цикла вектор с полузнками очищается и освобождается не используемая память, выделенная для хранения элементов данного вектора.
+```
+for (auto& slider : sliders)
+{
+    slider->setLookAndFeel(nullptr);
+}
+sliders.clear();
+sliders.shrink_to_fit();
+```
+
+Первым переопределённым базовым методом класса `juce::AudioProcessorEditor` является метод`paint()`, который используется для рисование в окне интерфейса. Данный метод использовался только для заливки заднего фона градиентом от фиолетового до чёрного цвета. Сначала с помощью метода `setGradientFill()` задаётся правило для градиентной заливки, а затем с помощью метода `fillRect()` задаётся область закрашивания. Так в данный метод был передан `getLocalBounds()`, то закрасится всё окно интерфейса.
+```
+g.setGradientFill(juce::ColourGradient::vertical(juce::Colour::fromRGB(40, 42, 53).darker(0.75f),
+        getHeight(), juce::Colour::fromRGB(40, 24, 53).brighter(0.02f), getHeight() * 0.4));
+g.fillRect(getLocalBounds());
+```
+Более важным методом является `resized()`, который определяет отображение элементов при изменении размера окна. Сначала в теле метода задаются размеры и отступы для всех элемнтов интерфейса. Затем, используя методы `setBounds()`, задаётся область, в которой должен быть отрисован данный элемент. Принцип отображения у всех элементов интерфейса одиноков, но здесь важно обратить внимание на 2 вещи. Во-первых, размеры и отспупы элементов расчитываются относительно текущего размера окна, так как они использует значения методов `getWidth()` и `getHeight()`. Это означает, что при изменении размера окна, размер элементов тоже изменится. Во-вторых, только у самого первого элемента область прорисовки задана с жёсткими рамками, остальные элементы высчитывают свою область относительно расположения предыдущего, то есть при изменении размеров окна элементы сохранят своё относительное расположение и нибудут накладываться друг на друга.
+
+```
+auto LeftMargin = getWidth() * 0.004;
+auto UpMargin = getHeight() * 0.1;
+
+auto SliderWidth = getWidth() * 0.14;
+auto SliderMargin = 1.1;
+
+auto WidthMargin = SliderMargin * 1.15;
+
+auto CompressorMargin = 1.37;
+auto secondRowHeight = 1.3;
+
+auto ButtonSize = getWidth() * 0.035;
+auto ButtonMargin = 1.25;
+
+frequencySlider.setBounds(LeftMargin, UpMargin, SliderWidth, SliderWidth);
+orderSlider.setBounds(frequencySlider.getX() + frequencySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
+
+filterTypeBox.setBounds(LeftMargin * 6, UpMargin + frequencySlider.getHeight() * 1.1, SliderWidth * 1.8, ButtonSize);
+
+DelaySlider.setBounds(orderSlider.getX() + SliderWidth * 1.2, UpMargin, SliderWidth, SliderWidth);
+BalanceSlider.setBounds(DelaySlider.getX() + DelaySlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
+WidthSlider.setBounds(BalanceSlider.getX() + BalanceSlider.getWidth() * SliderMargin, UpMargin, SliderWidth, SliderWidth);
+
+chorusButton.setSize(ButtonSize, ButtonSize);
+feedbackButton.setSize(ButtonSize, ButtonSize);
+
+feedbackButton.setBounds(DelaySlider.getX(), DelaySlider.getY() + DelaySlider.getHeight() * 1.1, SliderWidth, ButtonSize);
+chorusButton.setBounds(BalanceSlider.getX(), BalanceSlider.getY() + BalanceSlider.getHeight() * 1.1, SliderWidth, ButtonSize);
+
+lowFuncTypeBox.setBounds(WidthSlider.getX(), WidthSlider.getY() + WidthSlider.getHeight() * 1.1, SliderWidth, ButtonSize);
+
+delayGroup.setBounds(orderSlider.getX() + SliderWidth * 1.1, UpMargin / 2.5, SliderWidth * 2.13, feedbackButton.getY() + feedbackButton.getHeight() * 0.55);
+chorusGroup.setBounds(WidthSlider.getX() * 0.98, UpMargin / 2.5, SliderWidth * 1.15, chorusButton.getY() + chorusButton.getHeight() * 0.55);
+
+inputSlider.setBounds(LeftMargin, delayGroup.getY() + delayGroup.getHeight() * CompressorMargin, SliderWidth, SliderWidth);
+outputSlider.setBounds(LeftMargin, inputSlider.getY() + inputSlider.getHeight() * secondRowHeight, SliderWidth, SliderWidth);
+
+ioGroup.setBounds(LeftMargin * 2.7, inputSlider.getY() * 0.86, SliderWidth * 0.9, outputSlider.getY() / 1.5);
+
+threshSlider.setBounds(inputSlider.getX() + inputSlider.getWidth() * SliderMargin, inputSlider.getY(), SliderWidth, SliderWidth);
+compMixSlider.setBounds(threshSlider.getX() + threshSlider.getWidth(), threshSlider.getY() + threshSlider.getHeight() * secondRowHeight / 2, SliderWidth, SliderWidth);
+ratioSlider.setBounds(compMixSlider.getX() + compMixSlider.getWidth(), threshSlider.getY(), SliderWidth, SliderWidth);
+attackSlider.setBounds(threshSlider.getX(), inputSlider.getY() + inputSlider.getHeight() * secondRowHeight, SliderWidth, SliderWidth);
+releaseSlider.setBounds(ratioSlider.getX(), inputSlider.getY() + inputSlider.getHeight() * secondRowHeight, SliderWidth, SliderWidth);
+
+compressorGroup.setBounds(threshSlider.getX(), ioGroup.getY(), SliderWidth * 3, ioGroup.getHeight());
+
+limiterThreshSlider.setBounds(ratioSlider.getX() + ratioSlider.getWidth() * 1.15, threshSlider.getY(), SliderWidth, SliderWidth);
+limiterReleaseSlider.setBounds(limiterThreshSlider.getX(), inputSlider.getY() + inputSlider.getHeight() * secondRowHeight, SliderWidth, SliderWidth);
+
+limiterGroup.setBounds(limiterThreshSlider.getX() * 1., ioGroup.getY(), SliderWidth * 1.1, ioGroup.getHeight());
+
+frequencyButton.setBounds(WidthSlider.getX() + WidthSlider.getWidth() * 1.25, UpMargin / 2.5, SliderWidth, ButtonSize);
+delayEffectsButton.setBounds(frequencyButton.getX(), frequencyButton.getY() + ButtonSize * ButtonMargin, SliderWidth, ButtonSize);
+reverbButton.setBounds(frequencyButton.getX(), delayEffectsButton.getY() + ButtonSize * ButtonMargin, SliderWidth, ButtonSize);
+dynamicButton.setBounds(frequencyButton.getX(), reverbButton.getY() + ButtonSize * ButtonMargin, SliderWidth, ButtonSize);
+
+loadBtn.setBounds(frequencyButton.getX() * 1.018, (dynamicButton.getY() + ButtonSize * ButtonMargin) * 1.15, SliderWidth, ButtonSize);
+irName.setBounds(loadBtn.getX() * 0.99, loadBtn.getY() + loadBtn.getHeight() * 1.25, SliderWidth, ButtonSize);
+
+frequencyGroup.setBounds(LeftMargin, UpMargin / 6, SliderWidth * 2, filterTypeBox.getY() + ButtonSize * 1.22);
+delayEffectsGroup.setBounds(orderSlider.getX() + SliderWidth, UpMargin / 6, SliderWidth * 3.5, feedbackButton.getY() + feedbackButton.getHeight() * 1.22);
+dynamicProcGroup.setBounds(LeftMargin, inputSlider.getY() * 0.8, SliderWidth * 5.6, ioGroup.getHeight() * 1.1);
+processingSettingsGroup.setBounds(WidthSlider.getX() + WidthSlider.getWidth() * 1.2, UpMargin / 6, SliderWidth * 1.3, ButtonSize * ButtonMargin * 4.2);
+reverbGroup.setBounds(processingSettingsGroup.getX(), dynamicButton.getY() + ButtonSize * ButtonMargin, SliderWidth * 1.3, ButtonSize * 5);
+```
+
 ### Файл GUIprops
 
 ## Логика программного модуля
