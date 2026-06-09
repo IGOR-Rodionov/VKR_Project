@@ -23,6 +23,7 @@ VKRprojectAudioProcessor::VKRprojectAudioProcessor()
     , treeState(*this, nullptr, "PARAMETRS", createParametrLayout())
 #endif
 {
+    /* Add processing parametrs listener */
     // Frequency processing
     treeState.addParameterListener(cutoffFrequencyID, this);
     treeState.addParameterListener(orderId, this);
@@ -60,6 +61,7 @@ VKRprojectAudioProcessor::VKRprojectAudioProcessor()
 
 VKRprojectAudioProcessor::~VKRprojectAudioProcessor()
 {
+    /* Remove listeners */
     // Frequency processing
     treeState.removeParameterListener(cutoffFrequencyID, this);
     treeState.removeParameterListener(orderId, this);
@@ -159,6 +161,7 @@ void VKRprojectAudioProcessor::parameterChanged(const juce::String& parametrID, 
 
 void VKRprojectAudioProcessor::updateParameters()
 {
+    /* Update parameters values*/
     // Delay effects
     DalayTime = treeState.getRawParameterValue(delayTimeID)->load();
     Balance = treeState.getRawParameterValue(balanceID)->load() / 100;
@@ -245,8 +248,7 @@ void VKRprojectAudioProcessor::changeProgramName (int index, const juce::String&
 //==============================================================================
 void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    /* Prepare plug-in to precessing */
     juce::dsp::ProcessSpec spec;
     spec.maximumBlockSize = samplesPerBlock;
     spec.sampleRate = sampleRate;
@@ -300,8 +302,7 @@ void VKRprojectAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
 
 void VKRprojectAudioProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
+    // When playback stops, use this to free up filters
     channelFilters.clear();
 }
 
@@ -333,10 +334,12 @@ bool VKRprojectAudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 
 void VKRprojectAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    // Get signal data
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
+    // Apply processing depend on the type of processing
     if (isReverbProcessing) 
     {
         juce::dsp::AudioBlock<float> block(buffer);
@@ -468,6 +471,8 @@ void VKRprojectAudioProcessor::ReadFromBuffer(juce::AudioBuffer<float>& buffer, 
 
 const double VKRprojectAudioProcessor::lowFrequencyFunction()
 {
+    // Return value of low frequency generator 
+    // depend on function type
     if (lowFuncType == "sin(x)")
     {
         return std::sin(lowFuncVar * Width);
@@ -498,9 +503,7 @@ juce::AudioProcessorEditor* VKRprojectAudioProcessor::createEditor()
 //==============================================================================
 void VKRprojectAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    // Store processing parameters in the memory block.
     treeState.state.appendChild(variableTree, nullptr);
     juce::MemoryOutputStream stream(destData, false);
     treeState.state.writeToStream(stream);
@@ -508,8 +511,7 @@ void VKRprojectAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
 void VKRprojectAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    // Restore processing parameters from memory block,
     auto tree = juce::ValueTree::readFromData(data, size_t(sizeInBytes));
     variableTree = tree.getChildWithName("Variables");
 

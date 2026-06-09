@@ -10,6 +10,7 @@
 
 #include "../Source/PluginEditor.h"
 
+// Called when one of the butttons changes it's value
 void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
     // Processing settings
@@ -50,13 +51,11 @@ void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
     {
         if (chorusButton.getToggleState())
         {
-            //chorusButton.setToggleState(false, juce::dontSendNotification);
             audioProcessor.setEnabledChorus(true);
             return;
         }
         else
         {
-            //chorusButton.setToggleState(true, juce::dontSendNotification);
             audioProcessor.setEnabledChorus(false);
             return;
         }
@@ -65,36 +64,27 @@ void VKRprojectAudioProcessorEditor::buttonClicked(juce::Button* button)
     {
         if (feedbackButton.getToggleState())
         {
-            //feedbackButton.setToggleState(false, juce::dontSendNotification);
             audioProcessor.setEnabledFeedback(true);
             return;
         }
         else
         {
-            //feedbackButton.setToggleState(true, juce::dontSendNotification);
             audioProcessor.setEnabledFeedback(false);
             return;
         }
     }
 }
 
+// Called when comboBox change it's value
 void VKRprojectAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)
 {
-    // Frequency
-    /*
-    if (comboBoxThatHasChanged == &filterTypeBox)
-    {
-        audioProcessor.filterType = filterTypeBox.getItemText(filterTypeBox.getSelectedId());
-    }
-    */
-    // Delay
     if (comboBoxThatHasChanged == &lowFuncTypeBox)
     {
         audioProcessor.lowFuncType = lowFuncTypeBox.getItemText(lowFuncTypeBox.getSelectedId());
     }
 }
 
-
+// Set sliders commmon properties
 void VKRprojectAudioProcessorEditor::setCommonSliderProps(juce::Slider& slider)
 {
     addAndMakeVisible(slider);
@@ -119,6 +109,7 @@ void VKRprojectAudioProcessorEditor::setCommonSliderProps(juce::Slider& slider)
     slider.setComponentEffect(&SliderShadow);
 }
 
+// Set labels common properties
 void VKRprojectAudioProcessorEditor::setCommonLabelProps(juce::Label& label)
 {
     addAndMakeVisible(label);
@@ -126,19 +117,20 @@ void VKRprojectAudioProcessorEditor::setCommonLabelProps(juce::Label& label)
     label.setJustificationType(juce::Justification::centred);
 }
 
+// Set buttons common properties
+void VKRprojectAudioProcessorEditor::setCommonButtonProps(juce::ToggleButton& button)
+{
+    addAndMakeVisible(button);
+    button.changeWidthToFitText();
+    button.setClickingTogglesState(true);
+}
+
 void VKRprojectAudioProcessorEditor::setGroupProps(juce::GroupComponent& group)
 {
     addAndMakeVisible(group);
 }
 
-void VKRprojectAudioProcessorEditor::setCommonButtonProps(juce::ToggleButton& button)
-{
-    addAndMakeVisible(button);
-    button.changeWidthToFitText();
-    //button.setRadioGroupId(123);
-    button.setClickingTogglesState(true);
-}
-
+// Attach sliders to audioProcessor parametrs
 void VKRprojectAudioProcessorEditor::attachSliders()
 {
     // Frequency processing

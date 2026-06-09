@@ -2,7 +2,7 @@
   ==============================================================================
 
     CustomFilter.h
-    Created: 8 Jun 2026 5:32:48pm
+    Created: 14 Apr 2026 4:12:48pm
     Author:  irodi
 
   ==============================================================================
@@ -13,9 +13,52 @@
 #include <vector>
 #include <cmath>
 
+struct BiquadStage
+{
+    // Filter coefficients
+    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
+    float a1 = 0.0f, a2 = 0.0f;
+
+    // Signals values
+    float x1 = 0.0f, x2 = 0.0f;
+    float y1 = 0.0f, y2 = 0.0f;
+
+    // Parity of filter's order
+    bool isFirstOrder = false;
+
+    void reset()
+    {
+        x1 = x2 = y1 = y2 = 0.0f;
+    }
+
+    forcedinline float process(float in)
+    {
+        float out = 0.0f;
+
+        // Difference equation
+        if (isFirstOrder)
+        {
+            out = (b0 * in) + (b1 * x1) - (a1 * y1);
+        }
+        else
+        {
+            out = (b0 * in) + (b1 * x1) + (b2 * x2) - (a1 * y1) - (a2 * y2);
+        }
+
+        // Apply new values
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
+
+        return out;
+    }
+};
+
 class NOrderButterworth
 {
 public:
+    // Filter type
     enum class FilterType
     {
         LowPass,
@@ -24,6 +67,7 @@ public:
 
     NOrderButterworth() = default;
 
+    // Initialization of filter
     void init(int order)
     {
         filterOrder = juce::jmax(1, order);
@@ -34,6 +78,7 @@ public:
         reset();
     }
 
+    // Prepare filter before processing
     void prepare(double sampleRate)
     {
         currentSampleRate = sampleRate;
@@ -41,22 +86,7 @@ public:
         updateCoefficients();
     }
 
-    void reset()
-    {
-        for (auto& stage : stages)
-            stage.reset();
-    }
-
-    void setParameters(FilterType type, float cutoffFrequency)
-    {
-        currentType = type;
-
-        float maxCutoff = currentSampleRate > 0.0 ? static_cast<float>(currentSampleRate) * 0.49f : 20000.0f;
-        targetCutoff = juce::jlimit(20.0f, maxCutoff, cutoffFrequency);
-
-        updateCoefficients();
-    }
-
+    // Process one signal's sample
     forcedinline float processSample(float inputSample)
     {
         float output = inputSample;
@@ -69,44 +99,32 @@ public:
         return output;
     }
 
-private:
-    struct BiquadStage
+    void reset()
     {
-        float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
-        float a1 = 0.0f, a2 = 0.0f;
+        for (auto& stage : stages)
+            stage.reset();
+    }
 
-        float x1 = 0.0f, x2 = 0.0f;
-        float y1 = 0.0f, y2 = 0.0f;
+    // Set type and cutt off frequency
+    void setParameters(FilterType type, float cutoffFrequency)
+    {
+        currentType = type;
 
-        bool isFirstOrder = false;
+        float maxCutoff = currentSampleRate > 0.0 ? static_cast<float>(currentSampleRate) * 0.49f : 20000.0f;
+        targetCutoff = juce::jlimit(20.0f, maxCutoff, cutoffFrequency);
 
-        void reset()
-        {
-            x1 = x2 = y1 = y2 = 0.0f;
-        }
+        updateCoefficients();
+    }
 
-        forcedinline float process(float in)
-        {
-            float out = 0.0f;
+private:
+    int filterOrder = 4;
+    double currentSampleRate = 44100.0;
+    FilterType currentType = FilterType::LowPass;
+    float targetCutoff = 1000.0f;
 
-            if (isFirstOrder)
-            {
-                out = (b0 * in) + (b1 * x1) - (a1 * y1);
-            }
-            else
-            {
-                out = (b0 * in) + (b1 * x1) + (b2 * x2) - (a1 * y1) - (a2 * y2);
-            }
+    std::vector<BiquadStage> stages;
 
-            x2 = x1;
-            x1 = in;
-            y2 = y1;
-            y1 = out;
-
-            return out;
-        }
-    };
-
+    // Update all biquad stages
     void updateCoefficients()
     {
         if (currentSampleRate <= 0.0 || stages.empty()) return;
@@ -118,10 +136,12 @@ private:
 
         for (int i = 0; i < numBiquads; ++i)
         {
+            // If the filter order is odd
             if ((filterOrder % 2 != 0) && (i == numBiquads - 1))
             {
                 stages[i].isFirstOrder = true;
 
+                // Set filter coefficient depend on filter type
                 if (currentType == FilterType::LowPass)
                 {
                     stages[i].a1 = (tanTheta - 1.0f) / (tanTheta + 1.0f);
@@ -145,13 +165,14 @@ private:
                 float K = tanTheta;
                 float norm = 1.0f / (1.0f + K / q + K * K);
 
+                // Set filter coefficient depend on filter type
                 if (currentType == FilterType::LowPass)
                 {
                     stages[i].b0 = K * K * norm;
                     stages[i].b1 = 2.0f * stages[i].b0;
                     stages[i].b2 = stages[i].b0;
                 }
-                else // HighPass
+                else
                 {
                     stages[i].b0 = norm;
                     stages[i].b1 = -2.0f * stages[i].b0;
@@ -163,11 +184,4 @@ private:
             }
         }
     }
-
-    int filterOrder = 4;
-    double currentSampleRate = 44100.0;
-    FilterType currentType = FilterType::LowPass;
-    float targetCutoff = 1000.0f;
-
-    std::vector<BiquadStage> stages;
 };
