@@ -4,8 +4,20 @@
 
 ## Интерфейс программного модуля
 
-За реализацию графического интерфейса программного модуля отвечает класс `PluginEditor`, `DialLookAtFeel` и исполняемый файл `GUIprops`.
+За реализацию графического интерфейса программного модуля отвечает класс `PluginEditor`, `DialLookAtFeel` и файл `GUIprops`.
 
 ### Класс DialLookAtFell
 
+### Класс PluginEditor
 
+### Файл GUIprops
+
+## Логика программного модуля
+
+### Класс LVCompressor
+
+### Класс NOrderButterworth
+
+### Класс CustomConvolution
+
+### Класс PluginProcessor
