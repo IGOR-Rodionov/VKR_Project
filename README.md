@@ -109,6 +109,41 @@ reverbGroup.setBounds(processingSettingsGroup.getX(), dynamicButton.getY() + But
 
 ### Файл GUIprops
 
+Уже упоминалось, что однотипные элемнты интерфейса имеют общие настройки. Поэтому включение этих настроек было реализованно в отдельных функциях, которые находяться внутри файла `GUIprops.cpp`. В нём сущесвтует всего 7 методов.
+
+Первый метод `buttonClicked()`, который унаследован от базового класса `juce::ToggleButton::Listener`. Так как в конструкторе класса `PluginEditor` радиокнопки уже привезали вызов функции по нажатию, то остаётся только реализовать саму логику. Сначала нужно определить, какая кнопка была нажата, что делается путём сравнения аргумента функции `button` с конкретной радиокнопкой. Если их значения совпадают, то нажатая кнопка определена. Теперь внутри блока `if(){}` остаётся только включить соответсвующую опцию обработки, используя объект `audioProcessor`, в котором ихранится вся обработка данного модуля.
+
+Следующий метод `comboBoxChanged()`, который аналогичным образом обрабатывается изменение значений элементов интерфейса, но уже не радиокнопок, а выпадающего списка.
+
+Другой метод в файле — это метод `setCommonSliderProps()`, который включает настройки для переданного ползунка. Так как все ползунки находятся в векторе, то в конструкторе класса в цикле для каждого ползунка вызывалась данная функция. То есть настройки, которые включаются в данной функции, будут присутсвовать в каждом ползунке интерфейса. Сначала с помощью метода `addAndMakeVisible()` ползунок становится видимым и добавляется в интерфейс, а затем настраивается внешний ползунка. С помощью `setSliderStyle()` настраивается вид ползунка, в данном случае он становится круглым и вращающимся, с помощью `setTextBoxStyle()` настраивается отображение текста со значением, а именно оно будет отображатся снизу от ползунка. Метод `setLookAndFeel()` позволяет включить пользовательский внешний вид ползунков, который был настроен в классе `DialLookAtFell`. Далее идёт настройка цвета ползунка, и наконец настройка тен и ползунка, чтобы он был более чётким на фоне интерфейса.
+
+```
+addAndMakeVisible(slider);
+
+slider.setSliderStyle(juce::Slider::SliderStyle::RotaryVerticalDrag);
+slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 140, 36);
+slider.setLookAndFeel(&customDialAF);
+
+slider.setColour(juce::Slider::ColourIds::textBoxOutlineColourId, juce::Colours::transparentBlack);
+slider.setColour(juce::Slider::ColourIds::backgroundColourId, juce::Colours::whitesmoke.darker(0.8f));
+slider.setColour(juce::Slider::ColourIds::rotarySliderOutlineColourId, juce::Colours::black.brighter(0.25));
+slider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour::fromRGB(251, 242, 252).darker(0.15));
+slider.setColour(juce::Slider::ColourIds::thumbColourId, juce::Colour::fromRGBA(0.392f, 0.584f, 0.929f, 1.f).darker(1.f));
+
+shadowProperties.radius = 24;
+shadowProperties.offset = juce::Point<int>(0, 0);
+shadowProperties.colour = juce::Colours::black;
+SliderShadow.setShadowProperties(shadowProperties);
+slider.setComponentEffect(&SliderShadow);
+```
+Метод `setCommonLabelProps()` и `setCommonButtonProps()` выполняют аналогичную функцию, но являются более компактными. `setCommonLabelProps()` настраивает общие элементы для подписей, а именно включает их отображение на интерфейсе, устанавливает шрифт и ег оразмеры, а также включает выравнивание подписи, в данном случае выравнивание по центру.
+
+```
+addAndMakeVisible(label);
+label.setFont(juce::Font("Helvetica", 16.f, juce::Font::FontStyleFlags::bold));
+label.setJustificationType(juce::Justification::centred);
+```
+
 ## Логика программного модуля
 
 ### Класс LVCompressor
