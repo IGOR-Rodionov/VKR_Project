@@ -29,7 +29,7 @@ namespace dial
 
         _sliderName = slider.getName();
 
-        // Define color variables for customization
+        /** Define color variables for customization. */
         const auto outlineColor = slider.findColour(juce::Slider::rotarySliderOutlineColourId);
         const auto fillColor = slider.findColour(juce::Slider::rotarySliderFillColourId);
         const auto mainColor = slider.findColour(juce::Slider::thumbColourId).withAlpha(0.5f);
@@ -41,7 +41,7 @@ namespace dial
         float sizeScalar = 0.6f;
         auto fullRadius = juce::jmin(dialBounds.getWidth() * sizeScalar, dialBounds.getHeight() * sizeScalar);
 
-        // Dot color
+        /** Dot color*/
         g.setColour(juce::Colours::whitesmoke.withAlpha(0.5f));
         centre = dialBounds.getCentre();
 
@@ -49,7 +49,7 @@ namespace dial
 
         auto toAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-        // Track thickness
+        /** Track thickness*/
         float lineWidthMultiplier = width * 0.035;
         auto lineWidth = juce::jmin(lineWidthMultiplier, fullRadius * 0.5f);
         auto arcRadius = fullRadius - lineWidth * 2.25;
@@ -67,7 +67,7 @@ namespace dial
             true
         );
 
-        // Dial fill track color
+        /** Dial fill track color*/
         g.setColour(outlineColor);
         g.strokePath(backgroundArc, juce::PathStrokeType(lineWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
@@ -87,22 +87,22 @@ namespace dial
                     true
                 );
 
-                // Dial center color gradient
+                /** Dial center color gradient*/
                 g.setGradientFill(fillGradient);
             }
 
             g.fillEllipse(centre.getX() - dialRadius, centre.getY() - dialRadius, dialRadius * 2.0f, dialRadius * 2.0f);
         }
 
-        // Dial outline color
+        /** Dial outline color*/
         g.setColour(dialOutlineColor);
 
         auto scale = 2.0f;
 
-        // Dial outline thickness
+        /** Dial outline thickness*/
         g.drawEllipse(centre.getX() - dialRadius, centre.getY() - dialRadius, dialRadius * scale, dialRadius * scale, 4.5f);
 
-        // Fill Math
+        /** Fill Math*/
         juce::Path dialValueTrack;
         dialValueTrack.addCentredArc
         (
@@ -116,19 +116,19 @@ namespace dial
             true
         );
 
-        // Value track fill color
+        /** Value track fill color*/
         g.setColour(fillColor);
         g.strokePath(dialValueTrack, juce::PathStrokeType(lineWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-        // Dial tick color
+        /** Dial tick color*/
         g.setColour(dialOutlineColor);
         juce::Path dialTick;
         dialTick.startNewSubPath(centre.getPointOnCircumference(dialRadius - lineWidth, toAngle));
 
-        // Dial tick length
+        /** Dial tick length*/
         dialTick.lineTo(centre.getPointOnCircumference((dialRadius - lineWidth) * 0.6f, toAngle));
 
-        // Dial tick thickness
+        /** Dial tick thickness*/
         g.strokePath(dialTick, juce::PathStrokeType(lineWidth * 0.75, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         _sliderWidth = slider.getWidth();
