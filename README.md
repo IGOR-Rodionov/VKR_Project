@@ -610,3 +610,127 @@ return output;
 ```
 
 ### Класс PluginProcessor
+Класс `AudioProcessor` является основным классом данной работы, так как именно в нём содержится вся логика программного модуля. После создания пользовательского класса в качестве наследника от `AudioProcessor` необходимо переопределить 3 его меотда — `prepareToPlay()`, `releaseResources()` и `processBlock()`.
+
+Метод `prepareToPlay()` используется для поготовки программного модуля к обработке. Здесь необходимо вызвать аналогичные методы для каждого из разобранных классов вне зависимости от того, быдет ли данный класс участвовать в обработке.
+
+Метод `releaseResources()` используется для осовбождения ресурсов после завершения обработки. В данном случае необходимо вызвать только функцию `clear()` для частотных фильтров.
+
+Метод `processBlock()` является главным методом класса, так ка именно он отвечает за обработку поступающего сигнала. Сначала в данном методе отключаются денормализованные числа для оптимизации работы процессора, а затем в локальных переменных сохраняется количесвто каналов для входного и обработанного сигнала. После этого в зависимотси от включенного типа обработки нужно вызвать метод обработки `prcoess()` у соответсвующего объекта.
+```
+juce::ScopedNoDenormals noDenormals;
+auto totalNumInputChannels  = getTotalNumInputChannels();
+auto totalNumOutputChannels = getTotalNumOutputChannels();
+```
+
+Другим важным моментом, который необходимо выполнить выполнить, являетс установка параметров обработки и их связи с интерфейсом программного модуля. Внутри класса `PluginEditor` уже было описано, как происходит связь параметров с элементами управлениия интерфейса, теперь будет описано то, как эти параметры объявляются. Сначала необходимо добавить в класс `AudioProcessor` поле с типом `AudioProcessorValueTreeState`. Именно в нём будут объявлены все параметры.
+
+В конструкторе класса `AudioProcessor` необходимо проинициализировать объект типа `AudioProcessorValueTreeState`, передав в неё функцию `createParametrLayout()`, в которой и создаётся массив параметров обработки. В самом теле конструктора необходимо добавить возможность программному асинхронно получать данные при изменении какого либо параметра. Для сначала необходимо добавить ещё один родительский класс `AudioProcessorValueTreeState::Listener`, с помощью которого станет доступен вызов метода `addParameterListener()`. В данный метод передаётся идентификаторы параметра, который объявляется и инициализируется внутри файла `Parametrs`.
+
+```
+treeState.addParameterListener(paaramterID, this);
+```
+
+После того, как для параметра была вызвана функция `addParameterListener()`, необходимо вызвать функцию `removeParameterListener()` внутри дескруткотра класса. Функции имеет одинаковый синтаксис, но выполняют противоположные действия.
+
+Теперь необходимо определить функцию `createParametrLayout()`. В теле функции сначала создаётся диапазон значений для ползунков с помощью функции `NormalisableRange()`. В переменную `begin` записывается минимальное значения у ползунка, в `end` — максимальное, а в `step` записывается шаг, с котором изменеяются значения при движении ползунка. Затем создаётся параметр с помощью функции `make_unique<juce::AudioParameterFloat>()`. Сначала в функцию передаёюся идентификатор и имя парамтра, котрые находятся в файле `Parametrs`, затем созданный диапазон значений и последнее значение `default` испорльзуется для установки значения ползунка по умолчанию. Данные действия необходимо повторить для каждого из параметров обработки. Когда все параметры обработки объявлены, необходимо объявить вектор `params`, в котором будут храниться все параметры обработки. Каждыый парамтр необходимо передать в вектор, используя функцию `push_back()`. Когда все параметры были помещены в вектор, функция передаёт диапазон элементов вектора в качесвте возвращаемого значения.
+
+```
+NormalisableRange<float> sliderRange = juce::NormalisableRange<float>(begin, end, step);
+auto parameter = std::make_unique<juce::AudioParameterFloat>(parameterID, parameterName, sliderRange, default);
+
+std::vector <std::unique_ptr<juce::RangedAudioParameter>> params;
+params.push_back(std::move(parameter));
+
+return { params.begin(),params.end() };
+```
+
+Последним шагом с настройкой параметров является переопределение унаследорванной от класса `AudioProcessorValueTreeState::Listener` метода `parameterChanged()`. Данный метод вызывается всякий раз, когда происходит изменение какого-либо параметра обработки. В нём значение параметров из переменной `AudioProcessorValueTreeState` передаются в поля класса, где они и будут использоваться для обработки.
+
+Уже сейчас параметры обработки доступны для использования. но класс `AudioProcessor` предоставляет ещё дополнительный функционал для работы с параметрами. Пока изменённые значения параметров не сохраняются при закрытии программного модуля, и каждый раз при открытии мордуля их придётся вводить заново. Чтобы сохранять и загружать значения параметров используются методы `getStateInformation()` и `setStateInformation()`.
+
+В методе `getStateInformation()` происходит сохранение значений параметров обработки. Для этого в его теле сначала объявляется поток, в котром будут хранится значения параметров. Затем с помощью метода `state.writeToStream()` происходит запись этих значений в поток
+```
+juce::MemoryOutputStream stream(destData, false);
+treeState.state.writeToStream(stream);
+```
+
+В методе `setStateInformation()` происходит загрузка значений параметров. Сначала объявляется локальная переменная `tree`, которая считывает значения параметров из потока с помощью функции `ValueTree::readFromData()`. Если в потоке были данные, значит переменная `tree` пройдёт проверку на валидность, и е значения будут записаны в программный модуль.
+```
+auto tree = juce::ValueTree::readFromData(data, size_t(sizeInBytes));
+
+if (tree.isValid())
+{
+    treeState.state = tree;
+}
+```
+
+Описанный алгоритм исчерпывающий для парамтров принимающих числовые значения, что является достаточным для большинства программных модулей, но в данной работе используется свёртка с импульсным откликом, который считывается из файла. Для сохранения данных об аудиофайле описанных действий недостаточно. Чтобы сохранить аудиофайл в памяти необходимо объявить новое поле класса с типом `ValueTree`. именно в нём будет хранится информация о файле и о его расположении в файловой системе. Теперь внутри конструктора класса нужно проинициализировать данную переменную, как показано ниже.
+```
+variableTree =
+{
+        "Variables", {},
+        {
+            {"Group",{{"name","IR Vars"}},
+                {
+                    {"Parameter",{{"id","file1"},{"value","/"}}},
+                        {"Parameter",{{"id","root"},{"value","/"}}}
+                }
+            }
+        }
+};
+```
+
+Теперь внутри класса существует объект, в котором можно сохранять данные о файле. Изменять значение данного объекта стоит при загрузке аудиофайла в программный модуль. В данном коде продемонстрировано, как происходит загрузка аудиофайла в программу. Не смотря на то, что данный фрагмент кода относится к логике обработке, его необходимо поместить в класс `PluginEditor`, так как данный код будет вызываться при нажатии на кнопку из класса интерфейса.
+```
+fileChooser = std::make_unique<juce::FileChooser>("Chose File",
+        audioProcessor.root, "*");
+
+const auto fileChooserFlags = juce::FileBrowserComponent::openMode ||
+        juce::FileBrowserComponent::canSelectFiles ||
+        juce::FileBrowserComponent::canSelectDirectories;
+
+fileChooser->launchAsync(fileChooserFlags, [this](const
+        juce::FileChooser& chooser)
+{
+        juce::File result(chooser.getResult());
+
+        if (result.getFileExtension() == ".wav" ||
+                result.getFileExtension() == ".mp3")
+        {
+                audioProcessor.savedFile = result;
+                audioProcessor.root =
+                        audioProcessor.savedFile.getParentDirectory().getFullPathName();
+                audioProcessor.variableTree.setProperty("file1",
+                        audioProcessor.savedFile.getFullPathName(), nullptr);
+                audioProcessor.variableTree.setProperty("root",
+                        audioProcessor.savedFile.getParentDirectory().getFullPathName(),
+                                nullptr);
+                audioProcessor.myConvolution.reset();
+                audioProcessor.myConvolution.loadImpulseResponse(audioProcessor.savedFile);
+                irName.setText(result.getFileName(),
+                        juce::dontSendNotification);
+        }
+});
+```
+
+Теперь необходимо сделать так, чтобы значения `ValueTree` сохранялись и загружались вместе с остальными параметрами. Для этого внутри `getStateInformation()` объект `variableTree` обозначается как потомок `AudioProcessorValueTreeState`. Таким образом значения `ValueTree` будут сохраняться вместе со значениями `AudioProcessorValueTreeState`.
+```
+treeState.state.appendChild(variableTree, nullptr);
+```
+
+Внутри метода `setStateInformation` необходимо осуществить загрузку данный из памяти. Для этого с помощью функции `getChildWithName()` данные загрузжаются из памяти в поле `variableTree`. Уже через данный объект информация о аудиофайле попадает в поля класса с помощью метода `getProperty()`. Если загруженная информация о файле является корректной, то есть в программный модуль хотя бы единожды был корректно загружен аудиофайл, то тогда данный файл будет сразу загружен в класс реверберации.
+```
+    variableTree = tree.getChildWithName("Variables");
+
+    if (tree.isValid())
+    {
+        savedFile = juce::File(variableTree.getProperty("file1"));
+        root = juce::File(variableTree.getProperty("root"));
+        if (savedFile.existsAsFile())
+        {        
+            myConvolution.loadImpulseResponse(savedFile);
+        }
+
+    }
+```
