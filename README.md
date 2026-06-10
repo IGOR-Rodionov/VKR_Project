@@ -238,6 +238,116 @@ return mix;
 ```
 ### Класс CustomConvolution
 
+Класс `CustomConvolution` реализует эффект реверберации с помощью свёртки исходного сигнала с импульсным откликом системы, который хранится в отдельном аудиофайле.
+
+Первым методом класса является конструктор, в котором регистрируются доаустимые форматы для файла с импульсным откликом через поле `formatManager`. Данное поле является объектом класса `AudioFormatManager`, в котором есть метод `registerBasicFormats()`, позволяющий регестрировать аудиофайлы стандартных форматов (`WAV`, `AIFF` и так далее).
+
+Метод `prepare()` поготавлевает класс к обработке. Сначала внутри метода создаётся критическая секция для безопасного записи значения параметров, а именно частоты дискретизации через поле `sampleRate`, максимального размера блока `maxBlockSize` и числа аудиоканалов `numChannels`. После сохранения происходит вызов метода `updateHistoryBuffers()`.
+
+```
+const juce::ScopedLock sl(processLock);
+
+sampleRate = spec.sampleRate;
+maxBlockSize = spec.maximumBlockSize;
+numChannels = spec.numChannels;
+
+updateHistoryBuffers();
+```
+
+Метод `updateHistoryBuffers()` является приватным. Сначала он проверят, что в файле с импульсным откликом есть аудиоканала и что длина файла больше 0. Если оба условия верны, то тогда происходит выделение памяти для буфера `historyBuffers` и вектора `writeIndices` и очщение их данных. 
+```
+if (numChannels > 0 && irLength > 0)
+{
+        historyBuffers.setSize((int)numChannels, irLength);
+        historyBuffers.clear();
+
+        writeIndices.resize(numChannels);
+        std::fill(writeIndices.begin(), writeIndices.end(), 0);
+}
+```
+Булевый метод `loadImpulseResponse()` используется для загрузки в класс данных импульсного отклика. Аргументом является аудиофайл с импульсным откликом. Первым шагом алгоритм проверяет, что переданный файл существует, и если нет, то метод завершает свою работу, возвращая ложь. Ложное значение при завершении данного меода указывает, что данный метод не смог прояитать данный из переданного аудиофайла.
+
+```
+if (!irFile.existsAsFile())
+        return false;
+```
+
+Если фалйл существует, то тогда с помощью метода `createReaderFor()` создаётся объект `reader`, с помощью которого можно прочитать данные этого аудиофайла. Если `reader` создался корректно, то он будет указываеть на какую-либо область памяти, а если нет, то он будет равен `nullptr`, и метод снова вернёт ложь, завершив работу. При корректом созании `reader` в методе создаётся временный буфер `tempBuffer`, в котром и будут записаны данные аудиофайла. Сначала данный буфер объявляется и инициализируется его размер. Затем с помощью вызыва метода `read()` данные считываются из аудиофайла и записываются во временный буфер. Теперь эти данные необходимо записать в поля класса. Для это создаётся критическая секция для безопасной записи, и после данные аудио файла записываются в поле `impulseResponse`, а в поле `irLength` передаётся длина аудиофайла. После чего происходит вызов метода `updateHistoryBuffers()` и метод возвращает истину, что говорит об успешном чтении данных аудиофайла.
+```
+std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(irFile));
+
+if (reader != nullptr)
+{
+        juce::AudioBuffer<float> tempBuffer;
+        tempBuffer.setSize((int)reader->numChannels, (int)reader->lengthInSamples);
+
+        reader->read(&tempBuffer, 0, (int)reader->lengthInSamples, 0, true, true);
+
+        const juce::ScopedLock sl(processLock);
+        impulseResponse = tempBuffer;
+        irLength = impulseResponse.getNumSamples();
+        updateHistoryBuffers();
+        return true;
+}
+
+return false;
+```
+
+Метод `process()` является главным методом класса и используется для обработки сигнала. Сначала в методе объявляется критическая секция для безопасной обработки данных, причём не через `ScopedLock`, а с помощью `ScopedTryLock`. Данный тип критической секции является более подходящим для обработки в реальном времени — в отличие от обычной блокировки, `ScopedTryLock` в случае, если ему не доступен какой-либо ресурс, может не ждать его освобождения, а сразу завершить свою работу. После создаются переменные, хранящие на входной и выходной сигнал, и, зная их, создаются ещё две переменных, первая хранит общее число выборок сигнала, а вторая количество аудиоканалов сигнала. Затем происходит проверка, что импульсный отклик загружен корректно и его длина больше 0, а также проверяется, что критическая секция не закрыта, то есть что память сейчас занята другим потоком. Если не выполняется хотя бы одно из условий, то метод прекращает свою работу.
+
+```
+const juce::ScopedTryLock sl(processLock);
+
+const auto& inputBlock = context.getInputBlock();
+auto& outputBlock = context.getOutputBlock();
+
+const int numSamples = (int)inputBlock.getNumSamples();
+const int numCh = (int)inputBlock.getNumChannels();
+
+// Check сorrectness of impulse response
+if (irLength == 0 || !sl.isLocked())
+    return;
+```
+
+Затем происходит цикл по аудиоканалам. Данные из каналов входного и выходного сигнала записываются в локальные переменные с помощью функции `getChannelPointer()`. Далее
+```
+for (int ch = 0; ch < numCh; ++ch)
+{
+    auto* input = inputBlock.getChannelPointer(ch);
+    auto* output = outputBlock.getChannelPointer(ch);
+
+    auto* ir = impulseResponse.getReadPointer(juce::jmin(ch, impulseResponse.getNumChannels() - 1));
+    auto* history = historyBuffers.getWritePointer(ch);
+    int writeIdx = writeIndices[ch];
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        history[writeIdx] = input[i];
+
+        float outSample = 0.0f;
+        int readIdx = writeIdx;
+
+        // Calculate new value
+        for (int j = 0; j < irLength; ++j)
+        {
+            outSample += history[readIdx] * ir[j];
+
+            readIdx--;
+            if (readIdx < 0)
+                readIdx = irLength - 1;
+        }
+
+        output[i] = outSample;
+
+        writeIdx++;
+        if (writeIdx >= irLength)
+            writeIdx = 0;
+    }
+
+    writeIndices[ch] = writeIdx;
+}
+```
+
 ### Класс NOrderButterworth
 
 Сначала в файле описывается структруа `BiquadStage` — это одно звено фильтра первого или второго порядка. Путём каскадного соединения таких звениев можно реализовать фильтры высших порядков. Сначала в структуре объявляется коэффициенты знаменателя передаточной функции из формулы (1.4), а затем коэффициенты числителя. Так как максимальный порядок фильтра в цепи равняется 2, то знаменателя 3 коэффициента, а у числителя всего 2. Затем идут поля для значений текщей выборки сигнала и предыдущей. После идёт последнее поле структуры `isFirstOrder`, которое принимает всего два значения — истина, если звено содержит фильтр 1-го порядка, и ложь, если 2-го. Затем идут 2 единственные функции структуры: `reset()` и `process()`.
