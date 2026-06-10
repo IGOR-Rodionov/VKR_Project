@@ -162,6 +162,111 @@ sliderAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttach
 
 ### Эффект задержки
 
+Эффект задержки не реализован в отдельном классе, так как его реализация не требует сложных вычислений или струтур. Для эффекта задержки необходимо несколько полей. Первым и самым главным полем является буфер `DelayBuffer`, в котором хранится линия задержки. Далее необходимо объявить ещё 8 полей для корректной работы эффекта. Целочисленное поле `WritePosition` используется для записи дорожек в буфере задержки. `lowFuncVar` тоже является индексом, но используется для расчётов значений низкочастотной функции для хоруса. Вещественные поля `DalayTime`, `Balance` и `Width` отвечают за параметры эффекта: за величину задержки в милисекундах, за коффициент сжатия эхокопии в процентах от исходной громкости и частота низкочастотного генератора в герцах. Строка `lowFuncType` содержит информацию о типе низкочастотной функции для хоруса, и наконец последние два булевых поля `enabledChorus` и `enabledFeedback` отвечают за включение модификаций эффекта задержки во время обработки.
+
+Первым делом необходимо проинициализороват линию задержки перед обработкой. Сначала вычисляется размер буфера, а именно он будет хранить столько выборок сигнала, сколько их содержится в 2 секундах. Затем полученное значение устанавливается в линию задержки, а количество каналов буфера будет равно аудиоканалам исходного сигнала.
+```
+auto DelayBufferSize = sampleRate * 2.;
+DelayBuffer.setSize(getTotalNumOutputChannels(), (int)DelayBufferSize);
+DelayBuffer.clear();
+```
+
+Обработка эффектом задержки представлена ф коде ниже. Сначала из выходного буфера очищаются все данные, чтобы избежать появление ненужных шумов при обработке. Затем размеры выходного буфера и буфера и буфера линиии задержки записываются в локальные перемненные, и алгоритм приступает к циклу по количетсву аудиоканалов входного сигнала. Здесь данные исходного сигнала записываются в локальную перемненную, после чего происходит вызов функции `FillBuffer()`, которая предназначена для записи запаздывающих копий на линию задержки. После происходит вызов функции `ReadFromBuffer()`, которая складывает задержанные копии из линии задержки с исходным сигналом. Затем алгоритм проверяет, включена ли обратная связь, и если да, то результирующий сигнал снова попадает на линию задержки, что позволяет создать множественные эхо-копии. После цикла переменные счётчики сначала увеличиваются, а затем ограничиваются с помощью операции остатка от деления, чтобы эти счётчики не вышли за положенные им пределы.
+
+```
+for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+{
+        buffer.clear(i, 0, buffer.getNumSamples());
+}
+
+auto BufferSize = buffer.getNumSamples();
+auto DelayBufferSize = DelayBuffer.getNumSamples();
+
+for (int channel = 0; channel < totalNumInputChannels; ++channel)
+{
+        auto* channelData = buffer.getWritePointer(channel);
+        FillBuffer(channel, BufferSize, DelayBufferSize, channelData);
+        ReadFromBuffer(buffer, DelayBuffer, channel, BufferSize, DelayBufferSize);
+        if (enabledFeedback)
+        {
+                FillBuffer(channel, BufferSize, DelayBufferSize, channelData);
+        }
+}
+
+lowFuncVar++;
+lowFuncVar %= 1000;
+WritePosition += BufferSize;
+WritePosition %= DelayBufferSize;
+```
+
+Запись запаздывающих копий происходит через функцию `FillBuffer()`. Данная функция проверяет, превышает ли длина эхо-копий размеры линии задержки, и если не превышает, то алгоритм легко копирует данные из исходного сигнала на линию задержки с помощью функции `copyFrom`. Если же размеров линии задержки не хватает, чтобы уместить все эхо-копии, то тогда алгоритм вычисляет оставшеся место до конца линии задержки и копирует все эхо-копии начиная от `WritePosition` и заканчивая концом буфера задержки. Далее вычисляется количество выборок, которые не попали вы буфер, и тогда они копируются уже в начала буфеа, тем самым переписывая его старые значения.
+```
+if (DelayBufferSize > BufferSize + WritePosition)
+{
+        DelayBuffer.copyFrom(channel, WritePosition, channelData, BufferSize);
+}
+else
+{
+        auto NumSamplesToEnd = DelayBufferSize - WritePosition;
+        DelayBuffer.copyFrom(channel, WritePosition, channelData, NumSamplesToEnd);
+
+        auto NumSamplesAtStart = BufferSize - NumSamplesToEnd;
+        DelayBuffer.copyFrom(channel, 0, channelData + NumSamplesToEnd, NumSamplesAtStart);
+}
+```
+
+Функция `ReadFromBuffer` используется для чтения данных из линии задержки и их прибавке к исходному сигналу. Сначала вычисляется индекс чтения `ReadPosition` из буфера задержки. Он отстаёт от индекса исходного сигнала на величину задержки,. Так как индексы измеряются в выборках, а задержка в милисекундах, то величина задержки сначала переводится в секунды, а потом умножается на частоту дискретизации, и в результате получится значение задержки в выборках. После подсчёта индекса буфера линии задержки есть вероятность, что он принял отрицательное значение. В этом случае алгоритм прибавляет к нему размер линии задержки.
+```
+auto ReadPosition = WritePosition - (int)(DalayTime * getSampleRate() / 1000);
+if (ReadPosition < 0)
+{
+        ReadPosition += DelayBufferSize;
+}
+```
+
+Далее идёт подсчёт коэффициента масштабирования. Он равен соответсвующему параметру `Balance`, но если в обработке включен хорус, то тогда к нему сразу добавляется умножение на низкочастотную функцию, которая считается с помощью вызова метода `lowFrequencyFunction()`.
+```
+float Gain = Balance;
+if (enabledChorus)
+{
+        Gain = Balance * lowFrequencyFunction();
+}
+```
+
+Теперь алгоритм приступает непосредственно к чтению данных из буфера задержки. Если в линию задержки уместились все эхокопии, то они просто складываются с исходным сигналом с учётом коэффициента масштабирования `Gain` с помощью функции `addFromWithRamp()`. Если же размера блока было недостаточно для записи всех задержанных копий, и часть из них попала в начало буфера, то сначала алгоритм прибавляет те выборки, которые остались до конца буфера задержки. Затем он считает, сколько значений из начала линии задержки ему следует взять, после чего он прибавляет и их с помощью функции `addFromWithRamp`.
+```
+
+if (ReadPosition + BufferSize < DelayBufferSize)
+{
+        buffer.addFromWithRamp(channel, 0, DelayBuffer.getReadPointer(channel, ReadPosition), BufferSize, Gain, Gain);
+}
+else
+{
+        auto NumSamplesToEnd = DelayBufferSize - ReadPosition;
+        buffer.addFromWithRamp(channel, 0, DelayBuffer.getReadPointer(channel, ReadPosition), NumSamplesToEnd, Gain, Gain);
+
+        auto NumSamplesAtStart = BufferSize - NumSamplesToEnd;
+        buffer.addFromWithRamp(channel, NumSamplesToEnd, DelayBuffer.getReadPointer(channel, 0), NumSamplesAtStart, Gain, Gain);
+}
+```
+
+Последняя функция эффекта задержки `lowFrequencyFunction()` отвечает за вычисление значения низкочастотной функции для эффекта хоруса. В зависимости от значения поля `lowFuncType` функция выбирает одну из трёх функции, после чего возвращает её значение. Если поле смогло принять не корректное значение, то функция возвращает 1, чтобы не нарушать работу остальных функций эффекта.
+```
+if (lowFuncType == "sin(x)")
+{
+        return std::sin(lowFuncVar * Width);
+}
+else if (lowFuncType == "tan(sin(x))")
+{
+        return std::tan(std::sin(lowFuncVar) * Width);
+}
+else if (lowFuncType == "arctan(sin(x))")
+{
+        return std::atan(std::sin(lowFuncVar) * Width);
+}
+else return 1.;
+```
+
 ### Класс LVCompressor
 
 Класс `LVCompressor` является реализации компрессора. В классе содержится 8 методов, 5 из которых — это сет методы, и из 11 полей, 5 из которых это параметры.
